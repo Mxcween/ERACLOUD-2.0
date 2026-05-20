@@ -66,7 +66,6 @@ export default function HomePage() {
       <div className="cursor-glow" />
       <header className="header glass">
         <div className="logo">ERACLOUD</div>
-
         <button
           className="menu-toggle"
           type="button"
@@ -76,7 +75,6 @@ export default function HomePage() {
         >
           ☰
         </button>
-
         <nav className={`nav ${menuOpen ? 'open' : ''}`}>
           {navItems.map((item) => (
             <a key={item} href={`#${item.toLowerCase()}`} onClick={() => setMenuOpen(false)}>
@@ -84,7 +82,6 @@ export default function HomePage() {
             </a>
           ))}
         </nav>
-
         <button className="cta">Start Project</button>
       </header>
 
@@ -111,7 +108,8 @@ export default function HomePage() {
       </section>
 
       <section id="services" className="section">
-        <h2>Everything your business needs to look premium online.</h2><p className="sub">From website to automation — we build the digital foundation that helps your business move faster and attract better clients.</p>
+        <h2>Everything your business needs to look premium online.</h2>
+        <p className="sub">From website to automation — we build the digital foundation that helps your business move faster and attract better clients.</p>
         <div className="grid">{services.map(([t, d]) => <article className="glass card" key={t}><h3>{t}</h3><p>{d}</p><span>→</span></article>)}</div>
       </section>
 
@@ -121,7 +119,8 @@ export default function HomePage() {
       </section>
 
       <section id="pricing" className="section">
-        <h2>Flexible pricing for modern businesses.</h2><p className="sub">Every project is different. We adapt to your budget, speed, complexity, and business goals.</p>
+        <h2>Flexible pricing for modern businesses.</h2>
+        <p className="sub">Every project is different. We adapt to your budget, speed, complexity, and business goals.</p>
         <div className="prices">
           {[
             ['Starter Launch', 'from 250€', 'For small businesses that need a clean online foundation.', ['one-page landing page', 'basic branding polish', 'contact CTA', 'mobile responsive structure', 'social media visual foundation'], 'Start with Starter'],
@@ -133,7 +132,8 @@ export default function HomePage() {
       </section>
 
       <section id="contact" className="section form-wrap">
-        <h2>Tell us about your project.</h2><p className="sub">Send your idea, business, or current online presence — we’ll show you how it can look, work, and convert better.</p>
+        <h2>Tell us about your project.</h2>
+        <p className="sub">Send your idea, business, or current online presence — we’ll show you how it can look, work, and convert better.</p>
         <form className="glass form" onSubmit={(e) => { e.preventDefault(); setSent(true); }}>
           {['Name', 'Business name', 'Email', 'Phone / WhatsApp', 'Website or Instagram link'].map((f) => <input placeholder={f} key={f} required={f === 'Name' || f === 'Email'} />)}
           <select><option>What do you need?</option><option>Website</option><option>AI Automation</option><option>Branding / Visuals</option><option>Social Media Setup</option><option>Meta Ads</option><option>Full Digital System</option></select>
