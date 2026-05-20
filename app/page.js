@@ -29,25 +29,34 @@ export default function HomePage() {
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce) return;
+
     const root = document.documentElement;
     let x = window.innerWidth / 2;
     let y = window.innerHeight / 2;
     let tx = x;
     let ty = y;
+    let raf = 0;
+
     const move = (e) => {
       tx = e.clientX;
       ty = e.clientY;
     };
+
     const loop = () => {
       x += (tx - x) * 0.08;
       y += (ty - y) * 0.08;
       root.style.setProperty('--mx', `${x}px`);
       root.style.setProperty('--my', `${y}px`);
-      requestAnimationFrame(loop);
+      raf = requestAnimationFrame(loop);
     };
+
     window.addEventListener('pointermove', move);
-    loop();
-    return () => window.removeEventListener('pointermove', move);
+    raf = requestAnimationFrame(loop);
+
+    return () => {
+      window.removeEventListener('pointermove', move);
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   const year = useMemo(() => new Date().getFullYear(), []);
@@ -57,8 +66,21 @@ export default function HomePage() {
       <div className="cursor-glow" />
       <header className="header glass">
         <div className="logo">ERACLOUD</div>
+        <button
+          className="menu-toggle"
+          type="button"
+          aria-expanded={menuOpen}
+          aria-label="Toggle navigation"
+          onClick={() => setMenuOpen((prev) => !prev)}
+        >
+          ☰
+        </button>
         <nav className={`nav ${menuOpen ? 'open' : ''}`}>
-          {navItems.map((item) => <a key={item} href={`#${item.toLowerCase()}`}>{item}</a>)}
+          {navItems.map((item) => (
+            <a key={item} href={`#${item.toLowerCase()}`} onClick={() => setMenuOpen(false)}>
+              {item}
+            </a>
+          ))}
         </nav>
         <button className="cta">Start Project</button>
       </header>
@@ -82,34 +104,38 @@ export default function HomePage() {
       </section>
 
       <section className="feature-strip glass section">
-        {['Premium Websites','AI Automation','Branded Visuals','Growth Systems'].map((f)=><article key={f}><span>✦</span><p>{f}</p></article>)}
+        {['Premium Websites', 'AI Automation', 'Branded Visuals', 'Growth Systems'].map((f) => <article key={f}><span>✦</span><p>{f}</p></article>)}
       </section>
 
       <section id="services" className="section">
-        <h2>Everything your business needs to look premium online.</h2><p className="sub">From website to automation — we build the digital foundation that helps your business move faster and attract better clients.</p>
-        <div className="grid">{services.map(([t,d])=><article className="glass card" key={t}><h3>{t}</h3><p>{d}</p><span>→</span></article>)}</div>
+        <h2>Everything your business needs to look premium online.</h2>
+        <p className="sub">From website to automation — we build the digital foundation that helps your business move faster and attract better clients.</p>
+        <div className="grid">{services.map(([t, d]) => <article className="glass card" key={t}><h3>{t}</h3><p>{d}</p><span>→</span></article>)}</div>
       </section>
 
       <section id="process" className="section">
         <h2>From idea to launch — clear, fast, premium.</h2>
-        <div className="timeline">{processSteps.map(([t,d])=><article className="glass step" key={t}><h3>{t}</h3><p>{d}</p></article>)}</div>
+        <div className="timeline">{processSteps.map(([t, d]) => <article className="glass step" key={t}><h3>{t}</h3><p>{d}</p></article>)}</div>
       </section>
 
       <section id="pricing" className="section">
-        <h2>Flexible pricing for modern businesses.</h2><p className="sub">Every project is different. We adapt to your budget, speed, complexity, and business goals.</p>
+        <h2>Flexible pricing for modern businesses.</h2>
+        <p className="sub">Every project is different. We adapt to your budget, speed, complexity, and business goals.</p>
         <div className="prices">
           {[
-            ['Starter Launch','from 250€','For small businesses that need a clean online foundation.',['one-page landing page','basic branding polish','contact CTA','mobile responsive structure','social media visual foundation'],'Start with Starter'],
-            ['Growth System','from 500€','For businesses that need a stronger digital presence and better conversion flow.',['premium website structure','social media setup','branded visuals','lead/contact funnel','basic SEO setup','Meta Ads setup guidance'],'Build Growth System','Most requested'],
-            ['Premium Experience','up to 1000€','For businesses that want a complete premium digital system.',['high-end website','AI automation concept/setup','branded visuals','social media foundation','contact/request system','conversion-focused structure','launch support'],'Create Premium Experience']
-          ].map(([n,p,d,li,c,b])=><article className={`glass price ${b ? 'featured':''}`} key={n}><h3>{n}</h3>{b&&<small>{b}</small>}<h4>{p}</h4><p>{d}</p><ul>{li.map(i=><li key={i}>{i}</li>)}</ul><button className="ghost">{c}</button></article>)}
+            ['Starter Launch', 'from 250€', 'For small businesses that need a clean online foundation.', ['one-page landing page', 'basic branding polish', 'contact CTA', 'mobile responsive structure', 'social media visual foundation'], 'Start with Starter'],
+            ['Growth System', 'from 500€', 'For businesses that need a stronger digital presence and better conversion flow.', ['premium website structure', 'social media setup', 'branded visuals', 'lead/contact funnel', 'basic SEO setup', 'Meta Ads setup guidance'], 'Build Growth System', 'Most requested'],
+            ['Premium Experience', 'up to 1000€', 'For businesses that want a complete premium digital system.', ['high-end website', 'AI automation concept/setup', 'branded visuals', 'social media foundation', 'contact/request system', 'conversion-focused structure', 'launch support'], 'Create Premium Experience']
+          ].map(([n, p, d, li, c, b]) => <article className={`glass price ${b ? 'featured' : ''}`} key={n}><h3>{n}</h3>{b && <small>{b}</small>}<h4>{p}</h4><p>{d}</p><ul>{li.map((i) => <li key={i}>{i}</li>)}</ul><button className="ghost">{c}</button></article>)}
         </div>
         <p className="note">Final price depends on speed, complexity, content, and project scope.</p>
       </section>
 
       <section id="contact" className="section form-wrap">
-        <h2>Tell us about your project.</h2><p className="sub">Send your idea, business, or current online presence — we’ll show you how it can look, work, and convert better.</p>
-        <form className="glass form" onSubmit={(e)=>{e.preventDefault();setSent(true);}}>{['Name','Business name','Email','Phone / WhatsApp','Website or Instagram link'].map((f)=><input placeholder={f} key={f} required={f==='Name'||f==='Email'} />)}
+        <h2>Tell us about your project.</h2>
+        <p className="sub">Send your idea, business, or current online presence — we’ll show you how it can look, work, and convert better.</p>
+        <form className="glass form" onSubmit={(e) => { e.preventDefault(); setSent(true); }}>
+          {['Name', 'Business name', 'Email', 'Phone / WhatsApp', 'Website or Instagram link'].map((f) => <input placeholder={f} key={f} required={f === 'Name' || f === 'Email'} />)}
           <select><option>What do you need?</option><option>Website</option><option>AI Automation</option><option>Branding / Visuals</option><option>Social Media Setup</option><option>Meta Ads</option><option>Full Digital System</option></select>
           <select><option>Budget</option><option>250–500€</option><option>500–750€</option><option>750–1000€</option></select>
           <textarea placeholder="Project message" rows={5} />
