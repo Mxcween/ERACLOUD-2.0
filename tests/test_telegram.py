@@ -1,3 +1,5 @@
+import pytest
+
 from vintsniper.notify.telegram import TelegramNotifier
 from vintsniper.settings import TelegramSettings
 
@@ -95,5 +97,75 @@ class TestDeliveryHonesty:
         )
         try:
             assert await n.send_deal(self._deal(listing_factory, settings, registry)) is True
+        finally:
+            await n.close()
+
+
+class TestNoDuplicateOnNetworkError:
+    """Регресія на реальний дубль, який отримав замовник.
+
+    sendPhoto обірвався по мережі, код повторив запит, але Telegram уже
+    доставив перше повідомлення. Людина побачила два однакові алерти.
+    Повторювати можна лише те, що точно не дійшло.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _no_waiting(self, monkeypatch):
+        """Паузи між повторами тут не перевіряються, а тест через них повзе."""
+        async def instant(_seconds):
+            return None
+        monkeypatch.setattr("vintsniper.notify.telegram.asyncio.sleep", instant)
+
+    def _notifier(self):
+        return TelegramNotifier(
+            TelegramSettings(bot_token="123:ABC", chat_id_top="42", chat_id_all="42"),
+            dry_run=False,
+        )
+
+    async def test_send_is_not_retried_after_a_broken_connection(self, monkeypatch):
+        import httpx
+        n = self._notifier()
+        calls = []
+
+        async def boom(url, **kwargs):
+            calls.append(url)
+            raise httpx.ReadTimeout("обрив після відправки")
+
+        monkeypatch.setattr(n._client, "post", boom)
+        try:
+            assert await n._call("sendPhoto", {"chat_id": "42"}) is None
+            assert len(calls) == 1, f"мало бути рівно одне надсилання, а було {len(calls)}"
+        finally:
+            await n.close()
+
+    async def test_send_is_retried_when_connection_never_opened(self, monkeypatch):
+        import httpx
+        n = self._notifier()
+        calls = []
+
+        async def refuse(url, **kwargs):
+            calls.append(url)
+            raise httpx.ConnectError("з'єднання не піднялось")
+
+        monkeypatch.setattr(n._client, "post", refuse)
+        try:
+            assert await n._call("sendMessage", {"chat_id": "42"}) is None
+            assert len(calls) == 3, "тут Telegram нічого не бачив, повтори доречні"
+        finally:
+            await n.close()
+
+    async def test_read_only_calls_still_retry(self, monkeypatch):
+        import httpx
+        n = self._notifier()
+        calls = []
+
+        async def boom(url, **kwargs):
+            calls.append(url)
+            raise httpx.ReadTimeout("обрив")
+
+        monkeypatch.setattr(n._client, "post", boom)
+        try:
+            assert await n._call("getUpdates", {}) is None
+            assert len(calls) == 3, "читання можна повторювати скільки завгодно"
         finally:
             await n.close()

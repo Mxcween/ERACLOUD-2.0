@@ -22,6 +22,19 @@ API_ROOT = "https://api.telegram.org"
 # Telegram ріже підпис до фото на 1024 символах
 CAPTION_LIMIT = 1024
 
+# Методи, які змінюють стан: повторювати їх наосліп не можна.
+# У Telegram немає ключів ідемпотентності, тому єдиний захист від дублів
+# це не повторювати запит, який міг уже виконатись.
+MUTATING_METHODS = frozenset({"sendPhoto", "sendMessage", "answerCallbackQuery"})
+
+# Помилки, які доводять, що запит НЕ дійшов до Telegram: з'єднання навіть не
+# встановилось. Тільки їх безпечно повторювати.
+NEVER_SENT_ERRORS = (
+    httpx.ConnectError,
+    httpx.ConnectTimeout,
+    httpx.PoolTimeout,
+)
+
 
 @dataclass
 class Command:
@@ -37,7 +50,7 @@ class TelegramNotifier:
         *,
         send_photo: bool = True,
         dry_run: bool = False,
-        timeout: float = 25.0,
+        timeout: float = 45.0,
     ) -> None:
         self.settings = settings
         self.send_photo = send_photo
@@ -63,8 +76,27 @@ class TelegramNotifier:
         for attempt in range(1, 4):
             try:
                 resp = await self._client.post(f"/{method}", json=payload)
+            except NEVER_SENT_ERRORS as exc:
+                # З'єднання не піднялось, Telegram нічого не бачив. Повтор безпечний.
+                log.warning(
+                    "telegram %s не підключився (%s/3): %s", method, attempt, exc or type(exc).__name__
+                )
+                await asyncio.sleep(2 * attempt)
+                continue
             except httpx.HTTPError as exc:
-                log.warning("telegram %s мережа впала (%s/3): %s", method, attempt, exc)
+                # Обрив уже після відправки. Telegram міг прийняти запит і
+                # доставити повідомлення, а до нас не дійшла лише відповідь.
+                # Повторити означає надіслати другу копію, тому не повторюємо.
+                if method in MUTATING_METHODS:
+                    log.warning(
+                        "telegram %s обірвався після відправки (%s), НЕ повторюю: "
+                        "повідомлення могло вже піти, повтор дав би дубль",
+                        method, exc or type(exc).__name__,
+                    )
+                    return None
+                log.warning(
+                    "telegram %s мережа впала (%s/3): %s", method, attempt, exc or type(exc).__name__
+                )
                 await asyncio.sleep(2 * attempt)
                 continue
 
