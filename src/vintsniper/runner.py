@@ -35,7 +35,7 @@ from .vinted.ratelimit import RateLimiter
 log = logging.getLogger(__name__)
 
 SEEN_RETENTION_SECONDS = 7 * 86400
-PRUNE_EVERY_CYCLES = 200
+PRUNE_EVERY_CYCLES = 80
 
 
 class Sniper:
@@ -122,10 +122,22 @@ class Sniper:
             self._telegram_offset = int(saved_offset)
         self.muted = await asyncio.to_thread(self.repo.muted_brand_ids)
 
-        if self.settings.telegram.configured:
-            me = await self.notifier.get_me()
-            if me:
-                log.info("telegram-бот: @%s", me.get("username"))
+        if not self.settings.telegram.configured:
+            log.warning(
+                "TELEGRAM_BOT_TOKEN не заданий, працюю в режимі логів без відправки"
+            )
+            return
+
+        if not self.notifier.has_target:
+            saved = await asyncio.to_thread(self.repo.get_state, "chat_id_top")
+            if saved:
+                self.notifier.adopt_chat(saved)
+
+        me = await self.notifier.get_me()
+        if me:
+            log.info("telegram-бот: @%s", me.get("username"))
+
+        if self.notifier.has_target:
             await self.notifier.send_text(
                 format_startup(
                     [m.code for m in self.settings.enabled_markets],
@@ -136,8 +148,9 @@ class Sniper:
             )
         else:
             log.warning(
-                "TELEGRAM_BOT_TOKEN або TELEGRAM_CHAT_ID_TOP не задані, "
-                "працюю в режимі логів без відправки"
+                "Чат ще не відомий. Напиши боту%s у Telegram команду /start, "
+                "і він запам'ятає цей чат для алертів.",
+                f" @{me.get('username')}" if me else "",
             )
 
     async def close(self) -> None:
@@ -209,6 +222,13 @@ class Sniper:
                 )
 
                 for listing in listings:
+                    # Кожен лот враховуємо в статистиці рівно один раз, при першій
+                    # зустрічі. Інакше річ, яку ніхто не купує і яка тижнями висить
+                    # у стрічці, потрапляла б у медіану сотні разів і завищувала
+                    # оцінку продажу. Заразом це тримає базу в розумних розмірах.
+                    if listing.item_id not in new_ids:
+                        continue
+
                     bucket = self.status_maps[market.code].bucket(listing.status_title)
                     brand = self.registry.by_title(listing.brand_title)
 
@@ -216,15 +236,22 @@ class Sniper:
                     # коли будемо перепродавати самі.
                     if brand and bucket:
                         asking_eur = self.fx.to_eur(listing.price, listing.currency)
+                        # Перевіряємо ДО запису: якщо вікно по цьому ключу вже повне,
+                        # у пам'яті ми найстаріше витіснимо, а в базу писати не варто.
+                        # Так база тримається в межах ключі * window_size замість
+                        # того, щоб рости нескінченно.
+                        persist = self.price_book.has_capacity(
+                            brand.brand_id, category.id, bucket, server_ts
+                        )
                         self.price_book.record(
                             brand.brand_id, category.id, bucket, asking_eur, server_ts
                         )
-                        observations.append(
-                            (brand.brand_id, category.id, bucket, asking_eur, market.code, server_ts)
-                        )
+                        if persist:
+                            observations.append(
+                                (brand.brand_id, category.id, bucket, asking_eur,
+                                 market.code, server_ts)
+                            )
 
-                    if listing.item_id not in new_ids:
-                        continue
                     age = listing.age_seconds
                     if age is not None and age > self.max_age:
                         continue
@@ -367,7 +394,7 @@ class Sniper:
     async def _handle_commands(self) -> None:
         if not self.settings.telegram.configured or self.settings.dry_run:
             return
-        try:
+        try:  # noqa: SIM105 - обробка нижче
             new_offset = await self.notifier.poll_commands(
                 self._telegram_offset,
                 on_command=self._on_command,
@@ -382,6 +409,12 @@ class Sniper:
 
     async def _on_command(self, command: Command) -> str | None:
         name, args = command.name, command.args.strip()
+
+        if self.notifier.adopt_chat(command.chat_id):
+            await asyncio.to_thread(self.repo.set_state, "chat_id_top", command.chat_id)
+            return (
+                "✅ Готово, цей чат тепер отримує алерти.\n\n" + HELP_TEXT
+            )
 
         if name in ("start", "help"):
             return HELP_TEXT

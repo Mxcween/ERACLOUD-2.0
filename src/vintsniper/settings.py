@@ -71,7 +71,8 @@ class TelegramSettings:
 
     @property
     def configured(self) -> bool:
-        return bool(self.bot_token and self.chat_id_top)
+        """Токена достатньо: чат бот підхопить сам, коли йому напишуть /start."""
+        return bool(self.bot_token)
 
 
 @dataclass

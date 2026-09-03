@@ -42,6 +42,10 @@ class TelegramNotifier:
         self.settings = settings
         self.send_photo = send_photo
         self.dry_run = dry_run
+        # Чати тримаємо окремо від конфігу: якщо їх не задали змінними оточення,
+        # бот підхопить перший чат, з якого йому напишуть, і запам'ятає його.
+        self.chat_top = settings.chat_id_top
+        self.chat_all = settings.chat_id_all or settings.chat_id_top
         self._client = httpx.AsyncClient(
             base_url=f"{API_ROOT}/bot{settings.bot_token}", timeout=timeout
         )
@@ -95,10 +99,23 @@ class TelegramNotifier:
 
     # ----------------------------------------------------------------- алерти
 
+    @property
+    def has_target(self) -> bool:
+        return bool(self.chat_top)
+
+    def adopt_chat(self, chat_id: str) -> bool:
+        """Запам'ятовує чат, з якого написали, якщо жодного ще не задано."""
+        if self.chat_top or not chat_id:
+            return False
+        self.chat_top = chat_id
+        self.chat_all = self.chat_all or chat_id
+        log.info("підхопив чат %s для алертів", chat_id)
+        return True
+
     def _target(self, channel: str) -> tuple[str, int | None]:
         if channel == "top":
-            return self.settings.chat_id_top, self.settings.topic_id_top
-        return self.settings.chat_id_all, self.settings.topic_id_all
+            return self.chat_top, self.settings.topic_id_top
+        return self.chat_all or self.chat_top, self.settings.topic_id_all
 
     async def send_deal(self, deal: Deal, brand_id: int | None = None) -> bool:
         text = format_deal(deal)

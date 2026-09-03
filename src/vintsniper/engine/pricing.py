@@ -80,6 +80,14 @@ class PriceBook:
     def sample_size(self, brand_id: int, catalog_id: int, bucket: str, now_ts: int) -> int:
         return len(self._fresh(self._data.get((brand_id, catalog_id, bucket)), now_ts))
 
+    def has_capacity(self, brand_id: int, catalog_id: int, bucket: str, now_ts: int) -> bool:
+        """Чи є сенс зберігати ще одне спостереження по цьому ключу.
+
+        Вікно і так тримає лише window_size найсвіжіших, тому писати в базу
+        понад цю межу означає ростити її без користі для медіани.
+        """
+        return self.sample_size(brand_id, catalog_id, bucket, now_ts) < self.window_size
+
     def under_sampled(self, pairs: Iterable[tuple[int, int]], buckets: list[str], now_ts: int) -> list[tuple[int, int]]:
         """Пари бренд+категорія, де ще замало даних для медіани."""
         out = []

@@ -78,9 +78,10 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
 cp .env.example .env
-# впиши TELEGRAM_BOT_TOKEN і TELEGRAM_CHAT_ID_TOP
+# впиши TELEGRAM_BOT_TOKEN, більше нічого не треба
 
 PYTHONPATH=src .venv/bin/python -m vintsniper
+# далі напиши боту /start у Telegram
 ```
 
 ### Docker
@@ -97,9 +98,10 @@ docker compose logs -f
 і він підхопить налаштування сам.
 
 1. New → Blueprint → вкажи цей репозиторій.
-2. У панелі сервісу заповни змінні: `TELEGRAM_BOT_TOKEN`,
-   `TELEGRAM_CHAT_ID_TOP`, за бажанням `TELEGRAM_CHAT_ID_ALL`.
-3. **Обов'язково** заведи безкоштовний пінгер (UptimeRobot або
+2. У панелі сервісу заповни `TELEGRAM_BOT_TOKEN`. Більше нічого.
+3. Напиши боту `/start` у Telegram. Він запам'ятає цей чат і почне слати
+   туди алерти.
+4. **Обов'язково** заведи безкоштовний пінгер (UptimeRobot або
    cron-job.org) на `https://ТВІЙ-СЕРВІС.onrender.com/health` раз на
    10 хвилин.
 
@@ -119,10 +121,15 @@ Service засинає після 15 хвилин без вхідних запи
 
 ## Telegram
 
-Бота створюєш у [@BotFather](https://t.me/BotFather), свій `chat_id`
-дізнаєшся в [@userinfobot](https://t.me/userinfobot). Якщо хочеш два
-окремі канали, створи їх, додай бота адміном і візьми id кожного. Якщо
-`TELEGRAM_CHAT_ID_ALL` лишити порожнім, усе піде в один чат.
+Бота створюєш у [@BotFather](https://t.me/BotFather) і вписуєш токен у
+`TELEGRAM_BOT_TOKEN`. Далі просто напиши боту `/start` — він запам'ятає
+цей чат і надалі шле алерти туди. Жодних `chat_id` шукати не треба, він
+переживає перезапуск бо зберігається в базі.
+
+Якщо хочеш саме **два окремі канали**, створи їх, додай бота адміном і
+пропиши `TELEGRAM_CHAT_ID_TOP` та `TELEGRAM_CHAT_ID_ALL` вручну. Якщо
+використовуєш один чат з топіками, є ще `TELEGRAM_TOPIC_ID_TOP` і
+`TELEGRAM_TOPIC_ID_ALL`.
 
 Команди в чаті:
 

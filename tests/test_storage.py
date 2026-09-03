@@ -75,3 +75,9 @@ class TestState:
 
     def test_missing_key(self, repo):
         assert repo.get_state("nope") is None
+
+
+class TestChatAdoption:
+    def test_chat_id_survives_restart(self, repo):
+        repo.set_state("chat_id_top", "-1001234567890")
+        assert repo.get_state("chat_id_top") == "-1001234567890"

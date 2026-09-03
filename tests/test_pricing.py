@@ -82,3 +82,25 @@ class TestWindow:
         thin = book.under_sampled([(53, 1206), (999, 1206)], ["very_good"], NOW)
         assert (999, 1206) in thin
         assert (53, 1206) in thin
+
+
+class TestCapacity:
+    def test_has_capacity_until_window_is_full(self):
+        book = PriceBook(window_size=5, min_samples=3)
+        for i in range(4):
+            assert book.has_capacity(53, 1206, "very_good", NOW) is True
+            book.record(53, 1206, "very_good", 10 + i, NOW)
+        book.record(53, 1206, "very_good", 99, NOW)
+        assert book.has_capacity(53, 1206, "very_good", NOW) is False
+
+    def test_capacity_returns_with_stale_data(self):
+        book = PriceBook(window_size=3, min_samples=2, window_seconds=1000)
+        for _ in range(3):
+            book.record(53, 1206, "very_good", 10, NOW)
+        assert book.has_capacity(53, 1206, "very_good", NOW) is False
+        # старі спостереження випали з вікна, місце звільнилось
+        assert book.has_capacity(53, 1206, "very_good", NOW + 5000) is True
+
+    def test_unknown_key_always_has_capacity(self):
+        book = PriceBook(window_size=1, min_samples=1)
+        assert book.has_capacity(999, 999, "new", NOW) is True
