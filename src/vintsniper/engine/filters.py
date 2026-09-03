@@ -104,9 +104,12 @@ def _size_ok(listing: Listing, settings: Settings, category: Category) -> bool:
     if category.key == "shoes":
         eu = shoe_size_eu(listing.size_title)
         if eu is None:
-            # Взуття без вказаного розміру продати важче, але це не привід
-            # викидати лот, якщо він дуже дешевий. Пропускаємо далі.
-            return True
+            # Реальна пара взуття ЗАВЖДИ має числовий розмір: Vinted вимагає
+            # його при публікації. Якщо розміру нема або він на кшталт
+            # "Einheitsgröße", це не взуття, а супутній товар - шнурки,
+            # устілки, коробка, брелок. Ловить будь-якою мовою, на відміну
+            # від списку слів, у якому завжди бракуватиме чиєїсь.
+            return False
         lo = float(sizes_cfg.get("shoes_eu_min", 0))
         hi = float(sizes_cfg.get("shoes_eu_max", 99))
         return lo <= eu <= hi

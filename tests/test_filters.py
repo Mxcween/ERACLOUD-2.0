@@ -264,3 +264,47 @@ class TestBudgetSneakerModels:
         """Список діє лише у взутті: "Quest" чи "Galaxy" у назві куртки це не привід."""
         listing = listing_factory(brand_title="Nike", title="Nike Galaxy jacket vintage")
         assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)
+
+
+class TestShoesMustHaveNumericSize:
+    """Структурний фільтр замість переліку слів усіма мовами.
+
+    Реальна пара взуття завжди має числовий розмір: Vinted вимагає його при
+    публікації. Шнурки, устілки, коробки та брелоки йдуть як "Einheitsgröße"
+    або взагалі без розміру. Це ловить їх будь-якою мовою, тоді як список
+    слів завжди пропустить чиюсь: французькі "lacets" пролізли саме так.
+    """
+
+    @pytest.mark.parametrize("size", ["", "Einheitsgröße", "One size", "Uniwersalny", "-"])
+    def test_shoes_without_numeric_size_rejected(
+        self, listing_factory, settings, registry, shoes, size
+    ):
+        listing = listing_factory(
+            brand_title="Nike", title="Paire de lacets VANS bleus marines neufs",
+            size_title=size,
+        )
+        result = run(listing, settings, registry, shoes, 8.86, bucket="new")
+        assert isinstance(result, Rejected), size
+        assert "розмір" in result.reason
+
+    def test_real_pair_with_a_size_passes(self, listing_factory, settings, registry, shoes):
+        listing = listing_factory(brand_title="Nike", title="Nike Air Force 1", size_title="42")
+        assert isinstance(run(listing, settings, registry, shoes, 12.0, bucket="very_good"), Candidate)
+
+    def test_half_sizes_work(self, listing_factory, settings, registry, shoes):
+        listing = listing_factory(brand_title="Nike", title="Nike Dunk Low", size_title="44,5")
+        assert isinstance(run(listing, settings, registry, shoes, 12.0, bucket="very_good"), Candidate)
+
+    def test_clothing_without_size_is_untouched(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Правило суто для взуття: куртки без розміру трапляються нормально."""
+        listing = listing_factory(brand_title="Nike", title="Kurtka Nike", size_title="")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)
+
+    def test_french_laces_word_also_blocked(self, listing_factory, settings, registry, shoes):
+        """Другий рубіж: навіть із розміром 42 слово в назві відсіює лот."""
+        listing = listing_factory(
+            brand_title="Nike", title="Paire de lacets VANS", size_title="42"
+        )
+        assert isinstance(run(listing, settings, registry, shoes, 8.0, bucket="new"), Rejected)
