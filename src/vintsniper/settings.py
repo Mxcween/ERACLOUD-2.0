@@ -50,6 +50,7 @@ class Category:
     ceiling_eur: float
     weight_kg: float
     baseline_eur: dict[str, float]
+    min_profit_eur: float | None = None
     enabled: bool = True
 
 
@@ -167,6 +168,9 @@ def load_settings(config_dir: Path | None = None) -> Settings:
             ceiling_eur=float(c["ceiling_eur"]),
             weight_kg=float(c.get("weight_kg", 0.5)),
             baseline_eur={k: float(v) for k, v in (c.get("baseline_eur") or {}).items()},
+            min_profit_eur=(
+                float(c["min_profit_eur"]) if c.get("min_profit_eur") is not None else None
+            ),
             enabled=bool(c.get("enabled", True)),
         )
         for c in cats_raw.get("categories", [])

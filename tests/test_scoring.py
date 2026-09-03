@@ -41,10 +41,11 @@ class TestThresholds:
         cand = candidate(listing_factory(), registry, outerwear, 20.0)
         deal = score(cand, settings, book_with(100.0))
         assert deal is not None
-        assert deal.cost_eur == 23.5
-        assert deal.resale_eur == 72.0          # 100 * 0.72
-        assert deal.profit_eur == 48.5
-        assert deal.multiple == pytest.approx(3.06, abs=0.01)
+        assert deal.cost_eur == 23.5             # ціна + доставка
+        assert deal.resale_eur == 72.0           # 100 * 0.72
+        assert deal.profit_eur == 48.5           # профіт чистий, з доставкою
+        # Множник рахується від ціни самої речі, а не від ціни з доставкою
+        assert deal.multiple == pytest.approx(3.6, abs=0.01)
         assert deal.channel == "top"
 
     def test_thin_margin_is_dropped(self, listing_factory, settings, registry, outerwear):
@@ -79,8 +80,9 @@ class TestUncertaintyPremium:
         """
         baseline = outerwear.baseline_eur["A"]
         resale = baseline * 0.72
-        # ціна така, щоб множник вийшов рівно 2.2: між 2.0 і 2.4
-        price = round(resale / 2.2 - 3.5, 2)
+        # ціна така, щоб множник вийшов рівно 2.2: між 2.0 і 2.4.
+        # Множник рахується від ціни речі, доставку сюди не додаємо.
+        price = round(resale / 2.2, 2)
         cand = candidate(
             listing_factory(brand_title="Carhartt WIP"),
             registry, outerwear, price, brand="Carhartt WIP",
@@ -164,3 +166,93 @@ class TestReplicaHint:
         cand = candidate(listing_factory(title="Nike windbreaker"), registry, outerwear, 20.0)
         deal = score(cand, settings, book_with(100.0))
         assert not any("прочитай опис" in n for n in deal.notes)
+
+
+class TestPerCategoryProfitFloor:
+    """Спільний поріг профіту вимикав дешеві категорії повністю.
+
+    При 12 євро на всі категорії футболка масового бренду не могла пройти
+    ніколи: вона вся коштує близько 9 євро, тож 12 чистими з неї не вийде
+    навіть якби її віддавали безкоштовно. За перші 57 алертів було 25
+    взуття і рівно нуль футболок.
+    """
+
+    def test_cheap_categories_have_a_reachable_floor(self, settings):
+        for key in ("tops_tshirts", "knitwear_hoodies", "trousers", "jeans"):
+            cat = next(c for c in settings.categories if c.key == key)
+            resale_at_median = cat.baseline_eur["B"] * 0.72
+            assert cat.min_profit_eur < resale_at_median, (
+                f"{key}: поріг {cat.min_profit_eur} недосяжний, "
+                f"продаж масового бренду тут лише {resale_at_median:.1f}"
+            )
+
+    def test_expensive_categories_keep_a_higher_floor(self, settings):
+        outerwear = next(c for c in settings.categories if c.key == "outerwear")
+        shoes = next(c for c in settings.categories if c.key == "shoes")
+        tshirts = next(c for c in settings.categories if c.key == "tops_tshirts")
+        assert outerwear.min_profit_eur > tshirts.min_profit_eur
+        assert shoes.min_profit_eur > tshirts.min_profit_eur
+
+    def test_hoodie_that_used_to_be_silently_dropped_now_alerts(
+        self, listing_factory, settings, registry
+    ):
+        """Nike-кофта за 4 євро: продаж 15, профіт 7.5. Раніше різалась порогом 12."""
+        knitwear = settings.category_by_id(79)
+        book = book_with(21.0, brand_id=53, catalog_id=79)
+        cand = Candidate(
+            listing=listing_factory(catalog_id=79, title="Nike hoodie"),
+            brand=registry.by_title("Nike"), category=knitwear,
+            price_eur=4.0, bucket="very_good",
+        )
+        deal = evaluate(
+            cand, settings=settings, price_book=book, shipping_eur=3.5, now_ts=NOW
+        )
+        assert deal is not None
+        assert deal.profit_eur >= knitwear.min_profit_eur
+        assert deal.multiple >= 2.0
+
+
+class TestMultipleIgnoresShipping:
+    """Vinted бере доставку за замовлення, а не за річ.
+
+    Поки множник рахувався від "ціна + доставка", кофта за 4 євро мала
+    вартість 7.5 і множник 1.4 замість 2.7. Дешеві категорії через це були
+    заблоковані арифметично, і бот слав саме взуття.
+    """
+
+    def test_multiple_uses_item_price(self, listing_factory, settings, registry, outerwear):
+        cand = candidate(listing_factory(), registry, outerwear, 20.0)
+        deal = score(cand, settings, book_with(100.0), shipping=3.5)
+        assert deal.multiple == pytest.approx(72.0 / 20.0, abs=0.01)
+
+    def test_profit_still_pays_full_shipping(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        cand = candidate(listing_factory(), registry, outerwear, 20.0)
+        deal = score(cand, settings, book_with(100.0), shipping=3.5)
+        assert deal.cost_eur == 23.5
+        assert deal.profit_eur == round(72.0 - 23.5, 2)
+
+    def test_shipping_still_decides_cheap_categories(
+        self, listing_factory, settings, registry
+    ):
+        """Доставка лишається головним важелем: вона з'їдає профіт, не множник."""
+        knitwear = settings.category_by_id(79)
+        book = book_with(15.0, brand_id=53, catalog_id=79)
+        cand = Candidate(
+            listing=listing_factory(catalog_id=79, title="Nike hoodie"),
+            brand=registry.by_title("Nike"), category=knitwear,
+            # Продаж 10.8, поріг профіту 5. За доставки 3.5 лишається 3.8 і лот
+            # не проходить, за доставки 1.0 лишається 6.3 і проходить.
+            price_eur=3.5, bucket="very_good",
+        )
+        expensive = evaluate(
+            cand, settings=settings, price_book=book, shipping_eur=3.5, now_ts=NOW
+        )
+        cheap = evaluate(
+            cand, settings=settings, price_book=book, shipping_eur=1.0, now_ts=NOW
+        )
+        assert expensive is None, "за 3.5 доставки профіт не дотягує до порога"
+        assert cheap is not None, "за 1.0 доставки та сама кофта вже вигідна"
+        # Множник в обох випадках однаковий: доставка на нього не впливає
+        assert cheap.multiple == pytest.approx(15.0 * 0.72 / 3.5, abs=0.01)

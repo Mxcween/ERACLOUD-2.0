@@ -10,6 +10,12 @@
 #                   поки бот не назбирав власної статистики по конкретному
 #                   бренду, далі він рахує медіану сам.
 # weight_kg       - для оцінки доставки.
+# min_profit_eur  - скільки чистими має лишитись, щоб алерт узагалі пішов.
+#                   Свій для кожної категорії, бо один спільний поріг просто
+#                   вимикає дешеві категорії: при 12 євро футболка масового
+#                   бренду не могла пройти НІКОЛИ, навіть якби її віддавали
+#                   безкоштовно, бо вся вона коштує 9. Значення виставлені за
+#                   виміряними медіанами (див. scripts/calibrate.py).
 
 defaults:
   min_price_eur: 1.0
@@ -21,6 +27,7 @@ categories:
     ceiling_eur: 16
     weight_kg: 0.3
     baseline_eur: {S: 23, A: 15, B: 8}
+    min_profit_eur: 4
 
   - id: 79
     key: knitwear_hoodies
@@ -28,6 +35,7 @@ categories:
     ceiling_eur: 30
     weight_kg: 0.7
     baseline_eur: {S: 50, A: 20, B: 12}
+    min_profit_eur: 5
 
   - id: 1206
     key: outerwear
@@ -35,6 +43,7 @@ categories:
     ceiling_eur: 55
     weight_kg: 1.2
     baseline_eur: {S: 180, A: 54, B: 26}
+    min_profit_eur: 12
 
   - id: 257
     key: jeans
@@ -42,6 +51,7 @@ categories:
     ceiling_eur: 30
     weight_kg: 0.8
     baseline_eur: {S: 30, A: 20, B: 16}
+    min_profit_eur: 5
 
   - id: 34
     key: trousers
@@ -49,6 +59,7 @@ categories:
     ceiling_eur: 28
     weight_kg: 0.7
     baseline_eur: {S: 26, A: 19, B: 14}
+    min_profit_eur: 4
 
   - id: 1231
     key: shoes
@@ -56,6 +67,7 @@ categories:
     ceiling_eur: 45
     weight_kg: 1.1
     baseline_eur: {S: 67, A: 37, B: 31}
+    min_profit_eur: 14
 
   - id: 82
     key: accessories
@@ -63,6 +75,7 @@ categories:
     ceiling_eur: 30
     weight_kg: 0.5
     baseline_eur: {S: 45, A: 21, B: 13}
+    min_profit_eur: 10
 
   # Вимкнені за замовчуванням: більше шуму, ніж користі. Постав enabled: true
   # якщо захочеш їх теж.
@@ -73,6 +86,7 @@ categories:
     ceiling_eur: 30
     weight_kg: 0.6
     baseline_eur: {S: 45, A: 20, B: 12}
+    min_profit_eur: 7
 
   - id: 32
     key: suits_blazers
@@ -81,6 +95,7 @@ categories:
     ceiling_eur: 40
     weight_kg: 1.0
     baseline_eur: {S: 60, A: 28, B: 18}
+    min_profit_eur: 10
 
 # Стани речі за версією Vinted. Id перевірені емпірично на vinted.pl:
 #   6 = нове з биркою, 1 = нове без бирки, 2 = дуже добре,
@@ -152,6 +167,10 @@ title_blocklist:
   - tkanicky
   # тапки, шльопанці, сандалі: дешеві, важко продати, забивають стрічку
   - klapki
+  - claquette
+  - claquettes
+  - chanclas
+  - teenslippers
   - kapcie
   - pantofle
   - papucs
@@ -287,3 +306,24 @@ title_blocklist_by_category:
     - stormer
     - flexagon
     - energylux
+    # Футбольні бутси: вузький розмірний ряд, швидко вбиваються, не перепродаються
+    - korki
+    - "buty pilkarskie"
+    - fussballschuhe
+    - fusballschuhe
+    - "chaussures de foot"
+    - crampons
+    - scarpini
+    - "scarpe da calcio"
+    - voetbalschoenen
+    - stoplis
+    - futballcipo
+    - cleats
+    - "football boots"
+    - mercurial
+    - superfly
+    - tiempo
+    - phantom
+    - predator
+    - copa
+    - morelia

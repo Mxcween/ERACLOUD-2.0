@@ -86,7 +86,6 @@ brands:
   - {name: "Volcom",              tier: B, replica_risk: low}
   - {name: "Guess",               tier: B, replica_risk: medium}
   - {name: "Asics",               tier: B, replica_risk: medium}
-  - {name: "Under Armour",        tier: B, replica_risk: medium}
   - {name: "Fred Perry",          tier: B, replica_risk: medium}
 
   # --- Вінтажний спортивний одяг ---

@@ -53,11 +53,19 @@ def evaluate(
     resale_eur = round(estimate.value_eur * haircut * (1.0 - fee_rate), 2)
 
     cost_eur = round(candidate.price_eur + shipping_eur, 2)
-    if cost_eur <= 0:
+    if cost_eur <= 0 or candidate.price_eur <= 0:
         return None
 
+    # Профіт рахуємо чесно, з повною доставкою: це гроші, які реально лишаться.
     profit_eur = round(resale_eur - cost_eur, 2)
-    multiple = round(resale_eur / cost_eur, 2)
+
+    # А множник - від ціни самої речі. Vinted бере доставку за ЗАМОВЛЕННЯ, а не
+    # за одиницю товару: беручи в продавця чотири речі, платиш одну доставку.
+    # Якщо вішати повні 3.5 євро на кожну кофту за 4 євро, її вартість зростає
+    # утричі, і всі дешеві категорії стають недосяжними: щоб вийшов множник x2,
+    # кофта мала б коштувати менше 80 центів. Саме через це бот місяцями слав
+    # би саме взуття.
+    multiple = round(resale_eur / candidate.price_eur, 2)
 
     min_multiple = brand.min_multiple or float(scoring.get("min_multiple", 2.0))
     # Коли ціну перепродажу ми не виміряли, а вгадали з базової таблиці, вимагаємо
@@ -65,7 +73,14 @@ def evaluate(
     # реальних даних ще немає.
     if not estimate.is_measured:
         min_multiple += float(scoring.get("unmeasured_multiple_premium", 0.4))
-    min_profit = float(scoring.get("min_profit_eur", 8.0))
+    # Поріг профіту беремо категорійний. Спільний поріг на всі категорії
+    # просто вимикає дешеві: футболка масового бренду вся коштує 9 євро, тому
+    # 12 євро чистими з неї не вийде НІКОЛИ, і такі лоти зникали мовчки.
+    min_profit = (
+        category.min_profit_eur
+        if category.min_profit_eur is not None
+        else float(scoring.get("min_profit_eur", 8.0))
+    )
     top_multiple = float(scoring.get("top_multiple", 3.0))
     top_profit = float(scoring.get("top_profit_eur", 20.0))
 
