@@ -1,0 +1,107 @@
+# Категорії Vinted. Всі id перевірені запитами до реального API
+# (див. scripts/verify_reference_data.py). Id категорій спільні для всіх ринків.
+#
+# ceiling_eur     - максимальна ціна купівлі. Це головний запобіжник від
+#                   "футболка за 50 євро": дорожче за стелю лот не пройде
+#                   взагалі, яким би топовим не був бренд.
+# baseline_eur    - ціна перепродажу по тірах брендів, у євро. Це виміряні
+#                   медіани реальних оголошень на vinted.pl та vinted.de
+#                   (2688 лотів), приведені до стану "дуже добре". Працюють
+#                   поки бот не назбирав власної статистики по конкретному
+#                   бренду, далі він рахує медіану сам.
+# weight_kg       - для оцінки доставки.
+
+defaults:
+  min_price_eur: 1.0
+
+categories:
+  - id: 76
+    key: tops_tshirts
+    name: Футболки та топи
+    ceiling_eur: 16
+    weight_kg: 0.3
+    baseline_eur: {S: 23, A: 15, B: 8}
+
+  - id: 79
+    key: knitwear_hoodies
+    name: Світшоти, худі, светри
+    ceiling_eur: 30
+    weight_kg: 0.7
+    baseline_eur: {S: 50, A: 20, B: 12}
+
+  - id: 1206
+    key: outerwear
+    name: Верхній одяг, куртки
+    ceiling_eur: 55
+    weight_kg: 1.2
+    baseline_eur: {S: 180, A: 54, B: 26}
+
+  - id: 257
+    key: jeans
+    name: Джинси
+    ceiling_eur: 30
+    weight_kg: 0.8
+    baseline_eur: {S: 30, A: 20, B: 16}
+
+  - id: 34
+    key: trousers
+    name: Штани
+    ceiling_eur: 28
+    weight_kg: 0.7
+    baseline_eur: {S: 26, A: 19, B: 14}
+
+  - id: 1231
+    key: shoes
+    name: Взуття
+    ceiling_eur: 45
+    weight_kg: 1.1
+    baseline_eur: {S: 67, A: 37, B: 31}
+
+  - id: 82
+    key: accessories
+    name: Сумки та аксесуари
+    ceiling_eur: 30
+    weight_kg: 0.5
+    baseline_eur: {S: 45, A: 21, B: 13}
+
+  # Вимкнені за замовчуванням: більше шуму, ніж користі. Постав enabled: true
+  # якщо захочеш їх теж.
+  - id: 30
+    key: activewear
+    name: Спортивний одяг
+    enabled: false
+    ceiling_eur: 30
+    weight_kg: 0.6
+    baseline_eur: {S: 45, A: 20, B: 12}
+
+  - id: 32
+    key: suits_blazers
+    name: Костюми та піджаки
+    enabled: false
+    ceiling_eur: 40
+    weight_kg: 1.0
+    baseline_eur: {S: 60, A: 28, B: 18}
+
+# Стани речі за версією Vinted. Id перевірені емпірично на vinted.pl:
+#   6 = нове з биркою, 1 = нове без бирки, 2 = дуже добре,
+#   3 = добре, 4 = задовільне, 7 = несправне
+conditions:
+  accepted_ids: [6, 1, 2, 3]
+  buckets:
+    new: [6, 1]
+    very_good: [2]
+    good: [3]
+  # Наскільки стан впливає на ціну перепродажу відносно "дуже доброго"
+  resale_factor:
+    new: 1.15
+    very_good: 1.0
+    good: 0.82
+
+# Розміри. Порівняння нечутливе до регістру і пробілів. Для одягу дивимось
+# на початок рядка розміру, бо Vinted пише "M / 38 / 10".
+sizes:
+  clothing: [S, M, L, XL]
+  shoes_eu_min: 40
+  shoes_eu_max: 46
+  # Аксесуари здебільшого без розміру, тому їх не фільтруємо
+  skip_size_check_categories: [accessories]

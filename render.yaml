@@ -1,0 +1,40 @@
+# Деплой на Render.
+#
+# Важливо: на безкоштовному тарифі Render немає Background Worker, тому бот
+# оформлений як Web Service. Він слухає /health, а сам моніторинг крутиться
+# у фоні того ж процесу.
+#
+# Безкоштовний Web Service засинає після 15 хвилин без вхідних запитів, тому
+# після деплою заведи безкоштовний пінгер (UptimeRobot або cron-job.org) на
+# https://ТВІЙ-СЕРВІС.onrender.com/health раз на 10 хвилин. Без цього бот
+# буде спати і пропускати лоти.
+
+services:
+  - type: web
+    name: vintsniper
+    runtime: python
+    plan: free
+    region: frankfurt          # найближчий до серверів Vinted
+    branch: claude/vinted-brand-monitor-l7mgtx
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m vintsniper
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: PYTHONPATH
+        value: src
+      # Значення нижче задаються в панелі Render, у репозиторій не потрапляють
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID_TOP
+        sync: false
+      - key: TELEGRAM_CHAT_ID_ALL
+        sync: false
+      # Порожньо = SQLite, який стирається при кожному редеплої.
+      # Для постійної історії цін встав сюди безкоштовний Postgres від Neon.
+      - key: DATABASE_URL
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
