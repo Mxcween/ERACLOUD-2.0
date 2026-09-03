@@ -138,6 +138,29 @@ title_blocklist:
   - lacci
   - veters
   - tkanicky
+  # тапки, шльопанці, сандалі: дешеві, важко продати, забивають стрічку
+  - klapki
+  - kapcie
+  - pantofle
+  - papucs
+  - slides
+  - slide
+  - adilette
+  - adilettes
+  - badelatschen
+  - badeschuhe
+  - hausschuhe
+  - pantoffeln
+  - ciabatte
+  - slippers
+  - slipper
+  - sandals
+  - sandalen
+  - sandaly
+  - sandales
+  - crocs
+  - flip-flops
+  - "flip flops"
   # коробки, бирки, пакети без самої речі
   - pudelko
   - pudelka
@@ -163,3 +186,29 @@ title_warn_words:
   - inspired
   - "1:1"
   - aaa
+
+# Кепки як тема мертві: дешеві, море підробок, ніхто не бере. Виняток лише
+# для люксу, там кепка коштує як куртка. Слово в назві відсікає лот, якщо
+# бренд НЕ зі списку brands нижче.
+title_blocklist_unless_brand:
+  brands:
+    - Gucci
+    - Louis Vuitton
+  words:
+    - cap
+    - caps
+    - kepka
+    - czapka
+    - czapki
+    - kappe
+    - muetze
+    - mutze
+    - snapback
+    - trucker
+    - casquette
+    - cappello
+    - gorra
+    - beanie
+    - bucket hat
+    - hat
+    - hats

@@ -1,74 +1,62 @@
-# Ліквідні бренди для перекупа. Id підтягуються автоматично з Vinted API
-# (scripts/resolve_brands.py) і кешуються в config/brand_ids.json.
+# Бренди для перекупа.
 #
-# tier:
-#   S - хайп і преміум, найбільша маржа, але й найбільше реплік
-#   A - стабільно добре продається, основний робочий тір
-#   B - великий обсяг, швидкий оборот, маржа менша
+# Тіри розставлені НЕ за репутацією, а за виміряною медіаною цін на vinted.de
+# у категорії верхнього одягу (96 лотів на бренд, заміряно скриптом
+# scripts/calibrate.py та разовим прогоном по кожному бренду):
+#   S - медіана від 130 євро
+#   A - від 55 до 129
+#   B - нижче 55, масовий обсяг і швидкий оборот
+#
+# Хайпові вуличні бренди навмисно прибрані. Trapstar, Corteiz, Supreme,
+# Palace, BAPE, Off-White, Yeezy, Represent, Palm Angels, Amiri гучні в
+# соцмережах, але на Vinted їх завалено: Trapstar має медіану 58 євро,
+# Corteiz 60. Оцінювати їх як преміум означало показувати профіт, якого нема.
 #
 # replica_risk: high | medium | low
-#   Лот не відсікається, але в алерті буде попередження. Vinted окремо віддає
-#   свій прапорець requires_authenticity_check, він теж враховується.
-#
-# min_multiple: індивідуальний поріг вигоди. Якщо не заданий, береться з config.yaml
+#   Лот не відсікається, лише йде з попередженням в алерті.
 
 brands:
-  # --- S: хайп і преміум ---
-  - {name: "Stone Island",        tier: S, replica_risk: high}
-  - {name: "C.P. Company",        tier: S, replica_risk: high}
-  - {name: "Arc'teryx",           tier: S, replica_risk: high}
-  - {name: "Moncler",             tier: S, replica_risk: high}
-  - {name: "Canada Goose",        tier: S, replica_risk: high}
-  - {name: "Supreme",             tier: S, replica_risk: high}
-  - {name: "Palace",              tier: S, replica_risk: high}
-  - {name: "Corteiz",             tier: S, replica_risk: high}
-  - {name: "Trapstar",            tier: S, replica_risk: high}
-  - {name: "A Bathing Ape",       tier: S, replica_risk: high}
-  - {name: "Off-White",           tier: S, replica_risk: high}
-  - {name: "Represent",           tier: S, replica_risk: high}
-  - {name: "Rick Owens",          tier: S, replica_risk: high}
-  - {name: "Maison Margiela",     tier: S, replica_risk: high}
-  - {name: "Acne Studios",        tier: S, replica_risk: medium}
-  - {name: "Vivienne Westwood",   tier: S, replica_risk: high}
-  - {name: "Y-3",                 tier: S, replica_risk: medium}
-  - {name: "Kapital",             tier: S, replica_risk: medium}
-  - {name: "Aime Leon Dore",      tier: S, replica_risk: medium}
-  - {name: "Burberry",            tier: S, replica_risk: high}
-  - {name: "Jordan",              tier: S, replica_risk: high}
-  - {name: "Yeezy",               tier: S, replica_risk: high}
-  - {name: "Chrome Hearts",       tier: S, replica_risk: high}
-  - {name: "Palm Angels",         tier: S, replica_risk: high}
-  - {name: "Amiri",               tier: S, replica_risk: high}
+  # --- S: преміум з підтвердженою ціною ---
+  - {name: "Canada Goose",        tier: S, replica_risk: high}     # медіана 350
+  - {name: "Moncler",             tier: S, replica_risk: high}     # 300
+  - {name: "Stone Island",        tier: S, replica_risk: high}     # 190
+  - {name: "C.P. Company",        tier: S, replica_risk: high}     # 180
+  - {name: "Arc'teryx",           tier: S, replica_risk: high}     # 179
+  - {name: "Burberry",            tier: S, replica_risk: high}     # 170
+  - {name: "Avirex",              tier: S, replica_risk: medium}   # 150
+  # Люкс: потрібен передусім заради кепок, див. title_blocklist_unless_brand
+  - {name: "Gucci",               tier: S, replica_risk: high}
+  - {name: "Louis Vuitton",       tier: S, replica_risk: high}
 
   # --- A: робочий тір ---
-  - {name: "Carhartt WIP",        tier: A, replica_risk: medium}
-  - {name: "Carhartt",            tier: A, replica_risk: medium}
-  - {name: "The North Face",      tier: A, replica_risk: high}
-  - {name: "Patagonia",           tier: A, replica_risk: medium}
-  - {name: "Salomon",             tier: A, replica_risk: medium}
-  - {name: "Ralph Lauren",        tier: A, replica_risk: high}
-  - {name: "Polo Ralph Lauren",   tier: A, replica_risk: high}
-  - {name: "Stussy",              tier: A, replica_risk: high}
-  - {name: "New Balance",         tier: A, replica_risk: medium}
-  - {name: "Barbour",             tier: A, replica_risk: medium}
-  - {name: "Napapijri",           tier: A, replica_risk: medium}
-  - {name: "Berghaus",            tier: A, replica_risk: low}
-  - {name: "Diesel",              tier: A, replica_risk: medium}
-  - {name: "Evisu",               tier: A, replica_risk: medium}
-  - {name: "Norse Projects",      tier: A, replica_risk: low}
-  - {name: "Oakley",              tier: A, replica_risk: medium}
-  - {name: "Lacoste",             tier: A, replica_risk: high}
-  - {name: "Dr. Martens",         tier: A, replica_risk: medium}
-  - {name: "Dickies",             tier: A, replica_risk: low}
-  - {name: "Helly Hansen",        tier: A, replica_risk: low}
-  - {name: "Jack Wolfskin",       tier: A, replica_risk: low}
-  - {name: "Montbell",            tier: A, replica_risk: low}
-  - {name: "Ellesse",             tier: A, replica_risk: low}
-  - {name: "Iceberg",             tier: A, replica_risk: medium}
-  - {name: "Avirex",              tier: A, replica_risk: medium}
-  - {name: "Schott",              tier: A, replica_risk: medium}
+  - {name: "Barbour",             tier: A, replica_risk: medium}   # 125
+  - {name: "Evisu",               tier: A, replica_risk: medium}   # 125
+  - {name: "Montbell",            tier: A, replica_risk: low}      # 120
+  - {name: "Carhartt WIP",        tier: A, replica_risk: medium}   # 80
+  - {name: "Ralph Lauren",        tier: A, replica_risk: high}     # 80
+  - {name: "Stussy",              tier: A, replica_risk: high}     # 80
+  - {name: "Norse Projects",      tier: A, replica_risk: low}      # 80
+  - {name: "Polo Ralph Lauren",   tier: A, replica_risk: high}     # 74
+  - {name: "Oakley",              tier: A, replica_risk: medium}   # 72
+  - {name: "Schott",              tier: A, replica_risk: medium}   # 72
+  - {name: "Salomon",             tier: A, replica_risk: medium}   # 70
+  - {name: "Iceberg",             tier: A, replica_risk: medium}   # 70
+  - {name: "Carhartt",            tier: A, replica_risk: medium}   # 55
 
-  # --- B: обсяг і швидкий оборот ---
+  # --- B: масові бренди, основний обсяг ---
+  - {name: "Jordan",              tier: B, replica_risk: high}     # 52
+  - {name: "The North Face",      tier: B, replica_risk: high}     # 50
+  - {name: "Patagonia",           tier: B, replica_risk: medium}   # 50
+  - {name: "Lacoste",             tier: B, replica_risk: high}     # 50
+  - {name: "Dr. Martens",         tier: B, replica_risk: medium}   # 50
+  - {name: "Diesel",              tier: B, replica_risk: medium}   # 44
+  - {name: "Berghaus",            tier: B, replica_risk: low}      # 43
+  - {name: "New Balance",         tier: B, replica_risk: medium}   # 40
+  - {name: "Napapijri",           tier: B, replica_risk: medium}   # 40
+  - {name: "Dickies",             tier: B, replica_risk: low}      # 35
+  - {name: "Helly Hansen",        tier: B, replica_risk: low}      # 35
+  - {name: "Jack Wolfskin",       tier: B, replica_risk: low}      # 27
+  - {name: "Ellesse",             tier: B, replica_risk: low}      # 17
   - {name: "Nike",                tier: B, replica_risk: high}
   - {name: "Adidas",              tier: B, replica_risk: high}
   - {name: "Puma",                tier: B, replica_risk: medium}

@@ -30,6 +30,14 @@ def registry():
                 name="Carhartt WIP", brand_id=872289, vinted_title="Carhartt WIP",
                 tier="A", replica_risk="medium",
             ),
+            ResolvedBrand(
+                name="Gucci", brand_id=10, vinted_title="Gucci",
+                tier="S", replica_risk="high",
+            ),
+            ResolvedBrand(
+                name="Louis Vuitton", brand_id=11, vinted_title="Louis Vuitton",
+                tier="S", replica_risk="high",
+            ),
         ]
     )
 

@@ -65,6 +65,12 @@ def screen(
     if junk is not None:
         return Rejected(f"не сама річ, а {junk!r}")
 
+    # Кепки беремо лише в люксу: у масових брендів це мертвий товар.
+    if brand.name.casefold() not in settings.cap_allowed_brands:
+        cap = find_word(listing.title, settings.cap_words)
+        if cap is not None:
+            return Rejected(f"головний убір ({cap!r}) не в люксовому бренді")
+
     seller_cfg = settings.seller or {}
     if seller_cfg.get("skip_business_sellers") and listing.seller_is_business:
         return Rejected("продавець-магазин")

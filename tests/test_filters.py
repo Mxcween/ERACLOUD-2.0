@@ -115,3 +115,45 @@ class TestJunkListings:
     ):
         listing = listing_factory(brand_title="Nike", title="Vintage Nike windbreaker")
         assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)
+
+
+class TestSlidesAndSlippers:
+    """Тапки замовник просив не слати: дешеві й погано продаються."""
+
+    @pytest.mark.parametrize(
+        "title",
+        ["Pantofle", "Napapijri papucs 44/45", "Adidas Yeezy slides",
+         "Klapki Nike", "adidas Adilette Aqua", "Badelatschen Nike", "Ciabatte Nike"],
+    )
+    def test_slides_are_rejected(self, listing_factory, settings, registry, shoes, title):
+        listing = listing_factory(brand_title="Nike", title=title, size_title="43")
+        assert isinstance(run(listing, settings, registry, shoes, 12.0), Rejected), title
+
+    def test_real_sneakers_still_pass(self, listing_factory, settings, registry, shoes):
+        for title in ["Nike Air Force 1 T. 41", "Jordan 4 oreo", "Nike court vission 41"]:
+            listing = listing_factory(brand_title="Nike", title=title, size_title="43")
+            assert isinstance(run(listing, settings, registry, shoes, 12.0), Candidate), title
+
+
+class TestCaps:
+    """Кепки лише в люксу: у масових брендів це мертвий товар."""
+
+    @pytest.mark.parametrize(
+        "title", ["Nike cap", "Czapka Nike", "Nike Kappe", "Snapback Nike", "Nike bucket hat"]
+    )
+    def test_mass_brand_caps_rejected(self, listing_factory, settings, registry, title):
+        accessories = settings.category_by_id(82)
+        listing = listing_factory(brand_title="Nike", title=title, size_title="")
+        result = run(listing, settings, registry, accessories, 12.0)
+        assert isinstance(result, Rejected), title
+        assert "головний убір" in result.reason
+
+    def test_luxury_caps_pass(self, listing_factory, settings, registry):
+        accessories = settings.category_by_id(82)
+        for brand in ("Gucci", "Louis Vuitton"):
+            listing = listing_factory(brand_title=brand, title=f"{brand} cap", size_title="")
+            assert isinstance(run(listing, settings, registry, accessories, 25.0), Candidate), brand
+
+    def test_vintage_is_not_mistaken_for_a_hat(self, listing_factory, settings, registry, outerwear):
+        listing = listing_factory(brand_title="Nike", title="Vintage Nike jacket")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)

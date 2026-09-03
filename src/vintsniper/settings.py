@@ -85,6 +85,8 @@ class Settings:
     category_defaults: dict[str, Any]
     title_blocklist: list[str]
     title_warn_words: list[str]
+    cap_words: list[str]
+    cap_allowed_brands: set[str]
     polling: dict[str, Any]
     scoring: dict[str, Any]
     seller: dict[str, Any]
@@ -161,6 +163,8 @@ def load_settings(config_dir: Path | None = None) -> Settings:
         for b in brands_raw.get("brands", [])
     ]
 
+    _caps = cats_raw.get("title_blocklist_unless_brand") or {}
+
     telegram = TelegramSettings(
         bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
         chat_id_top=os.getenv("TELEGRAM_CHAT_ID_TOP", "").strip(),
@@ -189,6 +193,8 @@ def load_settings(config_dir: Path | None = None) -> Settings:
         category_defaults=cats_raw.get("defaults", {}),
         title_blocklist=list(cats_raw.get("title_blocklist") or []),
         title_warn_words=list(cats_raw.get("title_warn_words") or []),
+        cap_words=list(_caps.get("words") or []),
+        cap_allowed_brands={b.casefold() for b in (_caps.get("brands") or [])},
         polling=main.get("polling", {}),
         scoring=main.get("scoring", {}),
         seller=main.get("seller", {}),
