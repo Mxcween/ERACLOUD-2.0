@@ -229,3 +229,38 @@ class TestConditionIsCheckedTwice:
     def test_accepted_buckets_match_status_ids(self, settings):
         assert settings.accepted_buckets("shoes") == {"new", "very_good"}
         assert "good" in settings.accepted_buckets("outerwear")
+
+
+class TestBudgetSneakerModels:
+    """Дешеві бігові моделі не перепродаються, але медіана бренду їх маскує.
+
+    Медіана рахується по зв'язці бренд+категорія, тому Air Max і Dunk тягнуть
+    "Nike, взуття" вгору, і Revolution за 11 євро виглядає як знахідка.
+    """
+
+    @pytest.mark.parametrize(
+        "title",
+        ["Nike Revolution vel 41", "Nike Downshifter 11", "adidas Duramo SL",
+         "adidas Runfalcon 3.0", "Asics Patriot 13", "Puma Anzarun Lite",
+         "Nike Flex Experience Run"],
+    )
+    def test_budget_models_rejected(self, listing_factory, settings, registry, shoes, title):
+        listing = listing_factory(brand_title="Nike", title=title, size_title="41")
+        result = run(listing, settings, registry, shoes, 12.0, bucket="very_good")
+        assert isinstance(result, Rejected), title
+
+    @pytest.mark.parametrize(
+        "title",
+        ["Nike Air Force 1 T. 41", "Nike Air Max 90", "Jordan 4 oreo",
+         "Nike Dunk Low panda", "adidas Samba OG"],
+    )
+    def test_desirable_models_still_pass(self, listing_factory, settings, registry, shoes, title):
+        listing = listing_factory(brand_title="Nike", title=title, size_title="41")
+        assert isinstance(run(listing, settings, registry, shoes, 12.0, bucket="very_good"), Candidate), title
+
+    def test_model_words_do_not_leak_into_clothing(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Список діє лише у взутті: "Quest" чи "Galaxy" у назві куртки це не привід."""
+        listing = listing_factory(brand_title="Nike", title="Nike Galaxy jacket vintage")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)

@@ -238,3 +238,46 @@ title_blocklist_by_category:
     - trailrunning
     - "trail running"
     - futocipo
+    # Бюджетні бігові та тренувальні моделі. Причина окрема від слова
+    # "running": медіана рахується по зв'язці бренд+категорія, тому дорогі
+    # Air Max та Dunk тягнуть її вгору, і будь-які дешеві Nike через це
+    # виглядають вигідними. Ці моделі не перепродаються ніколи.
+    - revolution
+    - downshifter
+    - flex experience
+    - flex contact
+    - todos
+    - runallday
+    - "run all day"
+    - star runner
+    - varsity compete
+    - city rep
+    - defy
+    - winflo
+    - renew
+    - quest
+    - explore strada
+    - "in-season"
+    - duramo
+    - runfalcon
+    - galaxy
+    - lite racer
+    - coreracer
+    - questar
+    - energyfalcon
+    - fluidflow
+    - ultimashow
+    - puremotion
+    - anzarun
+    - softride
+    - retaliate
+    - disperse
+    - twitch
+    - patriot
+    - contend
+    - excite
+    - jolt
+    - versablast
+    - stormer
+    - flexagon
+    - energylux

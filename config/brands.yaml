@@ -71,7 +71,6 @@ brands:
   - {name: "Levi's",              tier: B, replica_risk: medium}
   - {name: "Tommy Hilfiger",      tier: B, replica_risk: high}
   - {name: "Calvin Klein",        tier: B, replica_risk: high}
-  - {name: "Hugo Boss",           tier: B, replica_risk: high}
   - {name: "Columbia",            tier: B, replica_risk: low}
   - {name: "Timberland",          tier: B, replica_risk: medium}
   - {name: "Vans",                tier: B, replica_risk: medium}
