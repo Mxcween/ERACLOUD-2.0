@@ -89,6 +89,10 @@ class Sniper:
         self.status_maps: dict[str, StatusMap] = {}
         self.muted: set[int] = set()
         self._alert_times: list[float] = []
+        # Коли який продавець востаннє потрапляв у стрічку. Приманки йдуть
+        # пачками з одного акаунта: пʼять однакових пар у різних розмірах
+        # за пару хвилин. Одного-двох на годину досить, решта це спам.
+        self._seller_alerts: dict[int, list[float]] = {}
         # Знахідки, які трапились до того, як став відомий чат. Тримаємо їх,
         # а не викидаємо: лот уже позначений переглянутим і вдруге не спливе.
         self._pending: list[tuple[Deal, int]] = []
@@ -375,10 +379,17 @@ class Sniper:
         if not self._alert_budget_left():
             log.warning("досягнуто ліміт алертів на годину, притримую решту")
             return False
+        if not self._seller_budget_left(deal.listing.seller_id):
+            log.info(
+                "продавець %s уже в стрічці цієї години, пропускаю %s",
+                deal.listing.seller_id, deal.listing.url,
+            )
+            return False
 
         ok = await self.notifier.send_deal(deal, brand_id=brand_id)
         if ok:
             self._alert_times.append(time.monotonic())
+            self._remember_seller(deal.listing.seller_id)
             await asyncio.to_thread(self.repo.log_alert, deal, now_ts)
             log.info(
                 "→ %s %s %.2f EUR x%.2f (+%.2f) %s",
@@ -399,6 +410,29 @@ class Sniper:
         log.info("чат зʼявився, досилаю %s відкладених знахідок", len(queued))
         for deal, brand_id in sorted(queued, key=lambda d: -d[0].profit_eur):
             await self._dispatch(deal, brand_id, now_ts)
+
+    def _seller_budget_left(self, seller_id: int | None) -> bool:
+        """Скільки лотів від одного продавця пускаємо за годину."""
+        limit = int((self.settings.alerts or {}).get("max_alerts_per_seller_per_hour", 0) or 0)
+        if limit <= 0 or seller_id is None:
+            return True
+        cutoff = time.monotonic() - 3600
+        seen = [t for t in self._seller_alerts.get(seller_id, []) if t >= cutoff]
+        self._seller_alerts[seller_id] = seen
+        return len(seen) < limit
+
+    def _remember_seller(self, seller_id: int | None) -> None:
+        if seller_id is None:
+            return
+        self._seller_alerts.setdefault(seller_id, []).append(time.monotonic())
+        # Не даємо словнику рости нескінченно
+        if len(self._seller_alerts) > 5000:
+            cutoff = time.monotonic() - 3600
+            self._seller_alerts = {
+                k: [t for t in v if t >= cutoff]
+                for k, v in self._seller_alerts.items()
+                if any(t >= cutoff for t in v)
+            }
 
     def _alert_budget_left(self) -> bool:
         limit = int((self.settings.alerts or {}).get("max_alerts_per_hour", 60))

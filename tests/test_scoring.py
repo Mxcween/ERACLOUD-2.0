@@ -111,8 +111,9 @@ class TestNotes:
         assert any("підробляють" in n for n in deal.notes)
 
     def test_warns_when_estimate_is_a_guess(self, listing_factory, settings, registry, outerwear):
-        # 2 EUR за куртку Nike: запас такий, що проходить навіть на оцінці навмання
-        cand = candidate(listing_factory(), registry, outerwear, 2.0)
+        # 5 EUR за куртку Nike: запас великий, але не настільки, щоб це
+        # виглядало приманкою
+        cand = candidate(listing_factory(), registry, outerwear, 5.0)
         deal = score(cand, settings, PriceBook(min_samples=8))
         assert deal is not None
         assert any("оцінна" in n for n in deal.notes)
@@ -257,3 +258,47 @@ class TestShippingIsInformationalOnly:
         assert cheap.multiple == pricey.multiple
         # А ось чисті гроші вже різні, і людина бачить обидва числа
         assert cheap.net_profit_eur > pricey.net_profit_eur
+
+
+class TestBaitListings:
+    """Приманки: нові adidas за 1.75 євро.
+
+    Реальний випадок: один продавець за 18 хвилин виставив пʼять однакових
+    пар у розмірах 41-44 за 1.75 євро кожна, множник вийшов x12.34. Через
+    годину всі пʼять сторінок віддавали 404 - лоти знесли. Множник вище
+    певної межі це не знахідка, а приманка.
+    """
+
+    def test_absurd_multiple_is_rejected(self, listing_factory, settings, registry, outerwear):
+        # ринок 100, ціна 5 -> множник 14.4
+        cand = candidate(listing_factory(), registry, outerwear, 5.0)
+        assert score(cand, settings, book_with(100.0)) is None
+
+    def test_the_exact_adidas_bait_is_rejected(self, listing_factory, settings, registry):
+        """1.75 євро при медіані 30 - рівно той лот, що прийшов замовнику."""
+        shoes = settings.category_by_id(1242)
+        cand = Candidate(
+            listing=listing_factory(catalog_id=1242, title="New Sneakers adidas shoes 43",
+                                    size_title="43"),
+            brand=registry.by_title("Nike"), category=shoes,
+            price_eur=1.75, bucket="very_good",
+        )
+        book = book_with(30.0, brand_id=53, catalog_id=1242)
+        assert evaluate(cand, settings=settings, price_book=book,
+                        shipping_eur=4.5, now_ts=NOW) is None
+
+    def test_strong_but_believable_deal_survives(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Supreme за 15.70 з множником x6.10 це реальна знахідка, не приманка."""
+        cand = candidate(listing_factory(), registry, outerwear, 15.0)
+        deal = score(cand, settings, book_with(127.0))
+        assert deal is not None
+        assert 6.0 <= deal.multiple <= 10.0
+
+    def test_high_multiple_carries_a_warning(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        cand = candidate(listing_factory(), registry, outerwear, 15.0)
+        deal = score(cand, settings, book_with(127.0))
+        assert any("підозріло дешево" in n for n in deal.notes)

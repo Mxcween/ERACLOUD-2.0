@@ -95,6 +95,14 @@ def evaluate(
     if multiple < min_multiple or profit_eur < min_profit:
         return None
 
+    # Занадто добре, щоб бути правдою. Нові кросівки за 1.75 євро це не
+    # знахідка, а приманка: такі лоти або міняють ціну після публікації, або
+    # їх зносить сама Vinted. Краще пропустити один справжній подарунок долі,
+    # ніж регулярно ганятись за фейками.
+    max_multiple = float(scoring.get("max_multiple", 0) or 0)
+    if max_multiple and multiple > max_multiple:
+        return None
+
     channel = "top" if (multiple >= top_multiple and profit_eur >= top_profit) else "all"
 
     notes: list[str] = []
@@ -111,6 +119,8 @@ def evaluate(
         notes.append("продавець-магазин")
     if candidate.bucket == "good":
         notes.append("стан «добрий», зважай на фото")
+    if multiple >= 6.0:
+        notes.append("підозріло дешево, перевір продавця і опис перед оплатою")
     age = candidate.listing.age_seconds
     if age is not None and age > 7 * 86400:
         # Оголошення щойно з'явилось у стрічці, а фото старе: річ перевиставляють.

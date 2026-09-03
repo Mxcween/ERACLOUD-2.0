@@ -47,7 +47,7 @@ class TestDealMessage:
             listing=listing_factory(title="<script>alert(1)</script> куртка"),
             brand=registry.by_title("Nike"),
             category=category,
-            price_eur=2.0,
+            price_eur=5.0,
             bucket="very_good",
         )
         deal = evaluate(
