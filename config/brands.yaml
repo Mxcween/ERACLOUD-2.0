@@ -67,11 +67,6 @@ brands:
   - {name: "Umbro",               tier: B, replica_risk: low}
   - {name: "Wrangler",            tier: B, replica_risk: low}
   - {name: "Lee",                 tier: B, replica_risk: low}
-  - {name: "Superdry",            tier: B, replica_risk: low}
-  - {name: "Quiksilver",          tier: B, replica_risk: low}
-  - {name: "Billabong",           tier: B, replica_risk: low}
-  - {name: "Volcom",              tier: B, replica_risk: low}
-  - {name: "Guess",               tier: B, replica_risk: medium}
   - {name: "Asics",               tier: B, replica_risk: medium}
   - {name: "Fred Perry",          tier: B, replica_risk: medium}
 

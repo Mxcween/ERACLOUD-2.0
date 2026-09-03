@@ -52,12 +52,14 @@ def evaluate(
     fee_rate = float(scoring.get("resale_fee_rate", 0.0))
     resale_eur = round(estimate.value_eur * haircut * (1.0 - fee_rate), 2)
 
-    cost_eur = round(candidate.price_eur + shipping_eur, 2)
-    if cost_eur <= 0 or candidate.price_eur <= 0:
+    if candidate.price_eur <= 0:
         return None
 
-    # Профіт рахуємо чесно, з повною доставкою: це гроші, які реально лишаться.
-    profit_eur = round(resale_eur - cost_eur, 2)
+    # Профіт від собівартості, БЕЗ доставки. Доставка на Vinted платиться за
+    # замовлення, а не за річ: беручи чотири речі в одного продавця, платиш її
+    # раз. Відкидати добрий лот через доставку неправильно, тому вона йде
+    # окремим рядком в алерті, а рішення лишається за людиною.
+    profit_eur = round(resale_eur - candidate.price_eur, 2)
 
     # А множник - від ціни самої речі. Vinted бере доставку за ЗАМОВЛЕННЯ, а не
     # за одиницю товару: беручи в продавця чотири речі, платиш одну доставку.
@@ -121,10 +123,10 @@ def evaluate(
         channel=channel,
         category_key=category.key,
         category_name=category.name,
-        cost_eur=cost_eur,
         price_eur=candidate.price_eur,
         resale_eur=resale_eur,
         profit_eur=profit_eur,
+        shipping_eur=round(shipping_eur, 2),
         multiple=multiple,
         reference=estimate.label,
         sample_size=estimate.sample_size,

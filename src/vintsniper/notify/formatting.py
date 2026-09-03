@@ -57,11 +57,12 @@ def format_deal(deal: Deal) -> str:
         f"Розмір: <b>{size}</b> · Стан: {condition}",
         f"{market} · фото завантажено {listing.age_human} тому",
         "",
-        f"Ціна: <b>{price_line}</b>",
-        f"З доставкою: <b>{deal.cost_eur:.2f} EUR</b>",
+        f"Собівартість: <b>{price_line}</b>",
         f"Оцінка продажу: <b>{deal.resale_eur:.2f} EUR</b> <i>({reference})</i>",
-        f"Профіт: <b>+{deal.profit_eur:.2f} EUR</b> чистими, з доставкою",
-        f"Множник: <b>x{deal.multiple:.2f}</b> від ціни речі",
+        f"Профіт: <b>+{deal.profit_eur:.2f} EUR</b> · <b>x{deal.multiple:.2f}</b>",
+        "",
+        f"<i>Доставка −{deal.shipping_eur:.2f} EUR → чистими "
+        f"{deal.net_profit_eur:.2f} EUR</i>",
     ]
 
     if deal.notes:

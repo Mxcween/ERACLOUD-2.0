@@ -59,10 +59,10 @@ class Deal:
     channel: str                 # "top" або "all"
     category_key: str
     category_name: str
-    cost_eur: float              # скільки віддаси разом з доставкою
-    price_eur: float             # ціна лота в євро без доставки
+    price_eur: float             # собівартість: ціна лота з комісією покупця
     resale_eur: float            # реалістична ціна перепродажу
-    profit_eur: float
+    profit_eur: float            # продаж мінус собівартість, БЕЗ доставки
+    shipping_eur: float          # довідково, окремим рядком
     multiple: float
     reference: str               # "медіана" або "базова оцінка"
     sample_size: int
@@ -70,6 +70,20 @@ class Deal:
     replica_risk: str
     authenticity_flag: bool
     notes: list[str] = field(default_factory=list)
+
+    @property
+    def net_profit_eur(self) -> float:
+        """Що лишиться після доставки. Показуємо, але НЕ фільтруємо по цьому.
+
+        Доставка на Vinted платиться за замовлення, а не за річ, і залежить від
+        того, скільки ти береш в одного продавця. Відкидати через неї гарні лоти
+        неправильно: краще показати обидва числа і дати вирішити людині.
+        """
+        return round(self.profit_eur - self.shipping_eur, 2)
+
+    @property
+    def cost_eur(self) -> float:
+        return round(self.price_eur + self.shipping_eur, 2)
 
     @property
     def profit_pct(self) -> float:

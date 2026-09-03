@@ -10,8 +10,11 @@
 # baseline_eur    - медіана цін на vinted.de, виміряна по кожній підкатегорії
 #                   окремо (по 192 лоти на категорію). Працює поки бот не
 #                   назбирав власної статистики по конкретному бренду.
-# min_profit_eur  - скільки чистими має лишитись. Свій для кожної категорії:
-#                   12 євро з куртки нормально, з футболки недосяжно.
+# min_profit_eur  - профіт БЕЗ доставки: продаж мінус собівартість. Доставка
+#                   не бере участі у відборі взагалі, вона йде довідковим
+#                   рядком в алерті, бо на Vinted платиться за замовлення,
+#                   а не за річ. Поріг свій для кожної категорії: 15 євро з
+#                   куртки нормально, з футболки недосяжно.
 
 defaults:
   min_price_eur: 1.0
@@ -24,7 +27,7 @@ categories:
     ceiling_eur: 16
     weight_kg: 0.3
     baseline_eur: {S: 40, A: 17, B: 8}
-    min_profit_eur: 6
+    min_profit_eur: 8
 
   - id: 5492
     key: polo
@@ -32,7 +35,7 @@ categories:
     ceiling_eur: 20
     weight_kg: 0.35
     baseline_eur: {S: 55, A: 25, B: 12}
-    min_profit_eur: 8
+    min_profit_eur: 9
 
   - id: 79
     key: knitwear_hoodies
@@ -40,7 +43,7 @@ categories:
     ceiling_eur: 32
     weight_kg: 0.7
     baseline_eur: {S: 70, A: 35, B: 15}
-    min_profit_eur: 8
+    min_profit_eur: 9
 
   # --- верхній одяг ---
   - id: 1206
@@ -49,7 +52,7 @@ categories:
     ceiling_eur: 60
     weight_kg: 1.2
     baseline_eur: {S: 215, A: 70, B: 35}
-    min_profit_eur: 12
+    min_profit_eur: 15
 
   # --- низ ---
   - id: 257
@@ -58,7 +61,7 @@ categories:
     ceiling_eur: 32
     weight_kg: 0.8
     baseline_eur: {S: 60, A: 30, B: 24}
-    min_profit_eur: 8
+    min_profit_eur: 10
 
   - id: 34
     key: trousers
@@ -66,7 +69,7 @@ categories:
     ceiling_eur: 30
     weight_kg: 0.7
     baseline_eur: {S: 55, A: 30, B: 20}
-    min_profit_eur: 8
+    min_profit_eur: 9
 
   # --- спортивне: точні підкатегорії, БЕЗ шортів і аксесуарів ---
   - id: 582
@@ -75,7 +78,7 @@ categories:
     ceiling_eur: 40
     weight_kg: 1.0
     baseline_eur: {S: 110, A: 60, B: 40}
-    min_profit_eur: 12
+    min_profit_eur: 15
 
   - id: 583
     key: track_pants
@@ -83,7 +86,7 @@ categories:
     ceiling_eur: 26
     weight_kg: 0.6
     baseline_eur: {S: 55, A: 30, B: 20}
-    min_profit_eur: 8
+    min_profit_eur: 9
 
   - id: 581
     key: track_jackets
@@ -91,7 +94,7 @@ categories:
     ceiling_eur: 28
     weight_kg: 0.7
     baseline_eur: {S: 55, A: 30, B: 20}
-    min_profit_eur: 8
+    min_profit_eur: 9
 
   # --- взуття: лише кросівки ---
   - id: 1242
@@ -100,7 +103,7 @@ categories:
     ceiling_eur: 45
     weight_kg: 1.1
     baseline_eur: {S: 100, A: 55, B: 46}
-    min_profit_eur: 15
+    min_profit_eur: 18
 
   # Вимкнені навмисно. Аксесуари давали ремені, футляри та кепки; шорти й
   # спортивні аксесуари прибрані тим, що ми не опитуємо батьківську 30.

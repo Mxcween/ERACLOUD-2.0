@@ -41,9 +41,11 @@ class TestThresholds:
         cand = candidate(listing_factory(), registry, outerwear, 20.0)
         deal = score(cand, settings, book_with(100.0))
         assert deal is not None
-        assert deal.cost_eur == 23.5             # ціна + доставка
+        assert deal.price_eur == 20.0            # собівартість
         assert deal.resale_eur == 72.0           # 100 * 0.72
-        assert deal.profit_eur == 48.5           # профіт чистий, з доставкою
+        assert deal.profit_eur == 52.0           # продаж мінус собівартість
+        assert deal.shipping_eur == 3.5          # довідково, у відборі не бере участі
+        assert deal.net_profit_eur == 48.5       # що лишиться після доставки
         # Множник рахується від ціни самої речі, а не від ціни з доставкою
         assert deal.multiple == pytest.approx(3.6, abs=0.01)
         assert deal.channel == "top"
@@ -220,12 +222,12 @@ class TestPerCategoryProfitFloor:
         assert deal.multiple >= 2.0
 
 
-class TestMultipleIgnoresShipping:
-    """Vinted бере доставку за замовлення, а не за річ.
+class TestShippingIsInformationalOnly:
+    """Доставка не бере участі у відборі взагалі.
 
-    Поки множник рахувався від "ціна + доставка", кофта за 4 євро мала
-    вартість 7.5 і множник 1.4 замість 2.7. Дешеві категорії через це були
-    заблоковані арифметично, і бот слав саме взуття.
+    Vinted бере її за замовлення, а не за річ, тому відкидати гарний лот
+    через неї неправильно. Вона показується окремим рядком, а рішення
+    лишається за людиною.
     """
 
     def test_multiple_uses_item_price(self, listing_factory, settings, registry, outerwear):
@@ -233,34 +235,25 @@ class TestMultipleIgnoresShipping:
         deal = score(cand, settings, book_with(100.0), shipping=3.5)
         assert deal.multiple == pytest.approx(72.0 / 20.0, abs=0.01)
 
-    def test_profit_still_pays_full_shipping(
-        self, listing_factory, settings, registry, outerwear
-    ):
+    def test_profit_excludes_shipping(self, listing_factory, settings, registry, outerwear):
         cand = candidate(listing_factory(), registry, outerwear, 20.0)
         deal = score(cand, settings, book_with(100.0), shipping=3.5)
-        assert deal.cost_eur == 23.5
-        assert deal.profit_eur == round(72.0 - 23.5, 2)
+        assert deal.profit_eur == 52.0
+        assert deal.net_profit_eur == 48.5
 
-    def test_shipping_still_decides_cheap_categories(
-        self, listing_factory, settings, registry
-    ):
-        """Доставка лишається головним важелем: вона з'їдає профіт, не множник."""
+    def test_shipping_never_blocks_a_find(self, listing_factory, settings, registry):
+        """Той самий лот проходить і за дешевої, і за дорогої доставки."""
         knitwear = settings.category_by_id(79)
         book = book_with(35.0, brand_id=872289, catalog_id=79)
         cand = Candidate(
             listing=listing_factory(catalog_id=79, title="Carhartt hoodie"),
             brand=registry.by_title("Carhartt WIP"), category=knitwear,
-            # Продаж 25.2, поріг профіту 8. За доставки 14 лишається 3.2 і лот
-            # не проходить, за доставки 1.0 лишається 16.2 і проходить.
             price_eur=8.0, bucket="very_good",
         )
-        expensive = evaluate(
-            cand, settings=settings, price_book=book, shipping_eur=14.0, now_ts=NOW
-        )
-        cheap = evaluate(
-            cand, settings=settings, price_book=book, shipping_eur=1.0, now_ts=NOW
-        )
-        assert expensive is None, "за дорогої доставки профіт не дотягує до порога"
-        assert cheap is not None, "за дешевої доставки та сама кофта вже вигідна"
-        # Множник в обох випадках однаковий: доставка на нього не впливає
-        assert cheap.multiple == pytest.approx(35.0 * 0.72 / 8.0, abs=0.01)
+        cheap = evaluate(cand, settings=settings, price_book=book, shipping_eur=1.0, now_ts=NOW)
+        pricey = evaluate(cand, settings=settings, price_book=book, shipping_eur=14.0, now_ts=NOW)
+        assert cheap is not None and pricey is not None
+        assert cheap.profit_eur == pricey.profit_eur, "відбір не залежить від доставки"
+        assert cheap.multiple == pricey.multiple
+        # А ось чисті гроші вже різні, і людина бачить обидва числа
+        assert cheap.net_profit_eur > pricey.net_profit_eur
