@@ -14,6 +14,7 @@ from ..models import Deal
 from ..settings import Settings
 from .filters import Candidate
 from .pricing import PriceBook
+from .titles import find_word
 
 
 def evaluate(
@@ -78,6 +79,11 @@ def evaluate(
         notes.append("ціна перепродажу поки що оцінна, ринкових даних мало")
     if brand.replica_risk == "high" or brand.requires_authenticity_check:
         notes.append("бренд часто підробляють, перевір бирки і шви на фото")
+    # Не відсікаємо: продавці пишуть ці слова і в заперечення ("nie fake"),
+    # тому вирішує людина, а не бот.
+    hint = find_word(candidate.listing.title, settings.title_warn_words)
+    if hint is not None:
+        notes.append(f"у назві є слово {hint!r}, прочитай опис уважно")
     if candidate.listing.seller_is_business:
         notes.append("продавець-магазин")
     if candidate.bucket == "good":

@@ -90,3 +90,28 @@ class TestConditionGate:
         result = run(listing_factory(), settings, registry, outerwear, 20.0, bucket=None)
         assert isinstance(result, Rejected)
         assert "стан" in result.reason
+
+
+class TestJunkListings:
+    """Нашивка бренду це не куртка бренду, хоч і лежить у тій самій категорії."""
+
+    def test_patch_is_rejected(self, listing_factory, settings, registry, outerwear):
+        listing = listing_factory(brand_title="Nike", title="Patch Nike vintage")
+        result = run(listing, settings, registry, outerwear, 14.0)
+        assert isinstance(result, Rejected)
+        assert "не сама річ" in result.reason
+
+    def test_laces_are_rejected(self, listing_factory, settings, registry, shoes):
+        listing = listing_factory(brand_title="Nike", title="Sznurówki Nike", size_title="43")
+        result = run(listing, settings, registry, shoes, 8.0)
+        assert isinstance(result, Rejected)
+
+    def test_real_jacket_still_passes(self, listing_factory, settings, registry, outerwear):
+        listing = listing_factory(brand_title="Nike", title="Kurtka wiatrówka Nike")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)
+
+    def test_vintage_in_title_is_not_treated_as_a_tag(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        listing = listing_factory(brand_title="Nike", title="Vintage Nike windbreaker")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)

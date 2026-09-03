@@ -83,6 +83,8 @@ class Settings:
     conditions: dict[str, Any]
     sizes: dict[str, Any]
     category_defaults: dict[str, Any]
+    title_blocklist: list[str]
+    title_warn_words: list[str]
     polling: dict[str, Any]
     scoring: dict[str, Any]
     seller: dict[str, Any]
@@ -185,6 +187,8 @@ def load_settings(config_dir: Path | None = None) -> Settings:
         conditions=cats_raw.get("conditions", {}),
         sizes=cats_raw.get("sizes", {}),
         category_defaults=cats_raw.get("defaults", {}),
+        title_blocklist=list(cats_raw.get("title_blocklist") or []),
+        title_warn_words=list(cats_raw.get("title_warn_words") or []),
         polling=main.get("polling", {}),
         scoring=main.get("scoring", {}),
         seller=main.get("seller", {}),

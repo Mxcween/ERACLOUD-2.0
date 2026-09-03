@@ -12,6 +12,7 @@ from ..models import Listing
 from ..settings import Category, Settings
 from ..vinted.brands import BrandRegistry, ResolvedBrand
 from .sizes import clothing_size, shoe_size_eu
+from .titles import find_word
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,12 @@ def screen(
 
     if not _size_ok(listing, settings, category):
         return Rejected(f"розмір {listing.size_title!r} не підходить")
+
+    # Нашивка CP Company лежить у категорії "верхній одяг" і коштує менше за
+    # стелю куртки, тому без цього її оцінили б як куртку.
+    junk = find_word(listing.title, settings.title_blocklist)
+    if junk is not None:
+        return Rejected(f"не сама річ, а {junk!r}")
 
     seller_cfg = settings.seller or {}
     if seller_cfg.get("skip_business_sellers") and listing.seller_is_business:

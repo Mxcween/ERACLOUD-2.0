@@ -105,3 +105,61 @@ sizes:
   shoes_eu_max: 46
   # Аксесуари здебільшого без розміру, тому їх не фільтруємо
   skip_size_check_categories: [accessories]
+
+# Сміття, яке продають під брендовою назвою і в брендовій категорії.
+# Нашивка CP Company лежить у "верхньому одязі", шнурки BAPE у "взутті", і
+# бот оцінював би їх як куртку та кросівки відповідно. Стеля ціни тут не
+# рятує: нашивка за 14 євро спокійно проходить під стелю куртки в 55.
+#
+# Слова шукаються цілими (не частинами інших слів), без урахування регістру
+# та діакритики. Мови ті, що реально трапляються в польській і німецькій
+# стрічках. Такі лоти відсікаються повністю.
+title_blocklist:
+  # нашивки та наліпки
+  - patch
+  - patches
+  - naszywka
+  - naszywki
+  - aufnaher
+  - nasivka
+  - toppa
+  - parche
+  - ecusson
+  - naklejka
+  - sticker
+  - aufkleber
+  - adesivo
+  # шнурки
+  - sznurowki
+  - sznurowka
+  - laces
+  - shoelaces
+  - schnursenkel
+  - lacci
+  - veters
+  - tkanicky
+  # коробки, бирки, пакети без самої речі
+  - pudelko
+  - pudelka
+  - karton
+  - "box only"
+  - "empty box"
+  - "nur karton"
+  - metka
+  - metki
+  - hangtag
+  - paragon
+  - "dust bag"
+
+# Слова, що натякають на репліку. НЕ відсікаємо, лише додаємо попередження
+# в алерт: продавці часто пишуть їх у запереченні ("nie fake", "no replica",
+# "oryginal nie podrobka"), і жорсткий фільтр викидав би нормальні лоти.
+title_warn_words:
+  - replika
+  - replica
+  - podrobka
+  - podrobki
+  - fake
+  - inspired
+  - "1:1"
+  - aaa

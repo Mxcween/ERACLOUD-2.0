@@ -150,3 +150,17 @@ class TestRelistSignal:
         cand = candidate(listing_factory(), registry, outerwear, 20.0)
         deal = score(cand, settings, book_with(100.0))
         assert not any("перевиставлення" in n for n in deal.notes)
+
+
+class TestReplicaHint:
+    def test_suspicious_word_in_title_adds_a_note(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        cand = candidate(listing_factory(title="Nike jacket replica"), registry, outerwear, 20.0)
+        deal = score(cand, settings, book_with(100.0))
+        assert any("replica" in n for n in deal.notes)
+
+    def test_clean_title_gets_no_such_note(self, listing_factory, settings, registry, outerwear):
+        cand = candidate(listing_factory(title="Nike windbreaker"), registry, outerwear, 20.0)
+        deal = score(cand, settings, book_with(100.0))
+        assert not any("прочитай опис" in n for n in deal.notes)
