@@ -7,7 +7,7 @@
       "vinted_title": "Canada Goose",
       "tier": "S",
       "replica_risk": "high",
-      "item_count": 122141,
+      "item_count": 122143,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -18,7 +18,7 @@
       "vinted_title": "Moncler",
       "tier": "S",
       "replica_risk": "high",
-      "item_count": 587242,
+      "item_count": 587263,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -29,7 +29,7 @@
       "vinted_title": "Stone Island",
       "tier": "S",
       "replica_risk": "high",
-      "item_count": 891373,
+      "item_count": 891391,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -40,7 +40,7 @@
       "vinted_title": "C.P. Company",
       "tier": "S",
       "replica_risk": "high",
-      "item_count": 416313,
+      "item_count": 416331,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -51,7 +51,7 @@
       "vinted_title": "Arc'teryx",
       "tier": "S",
       "replica_risk": "high",
-      "item_count": 268099,
+      "item_count": 268103,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -62,7 +62,7 @@
       "vinted_title": "Burberry",
       "tier": "S",
       "replica_risk": "high",
-      "item_count": 1786612,
+      "item_count": 1786634,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -73,7 +73,7 @@
       "vinted_title": "Avirex",
       "tier": "S",
       "replica_risk": "medium",
-      "item_count": 34385,
+      "item_count": 34387,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -84,7 +84,7 @@
       "vinted_title": "Gucci",
       "tier": "S",
       "replica_risk": "high",
-      "item_count": 1444739,
+      "item_count": 1444765,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -95,7 +95,51 @@
       "vinted_title": "Louis Vuitton",
       "tier": "S",
       "replica_risk": "high",
-      "item_count": 1006244,
+      "item_count": 1006265,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Vivienne Westwood",
+      "brand_id": 14217,
+      "vinted_title": "Vivienne Westwood",
+      "tier": "S",
+      "replica_risk": "high",
+      "item_count": 326248,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Supreme",
+      "brand_id": 14969,
+      "vinted_title": "Supreme",
+      "tier": "S",
+      "replica_risk": "high",
+      "item_count": 616894,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "A Bathing Ape",
+      "brand_id": 4691320,
+      "vinted_title": "A Bathing Ape (BAPE)",
+      "tier": "S",
+      "replica_risk": "high",
+      "item_count": 249363,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Palace",
+      "brand_id": 139960,
+      "vinted_title": "Palace",
+      "tier": "S",
+      "replica_risk": "high",
+      "item_count": 116636,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -106,7 +150,7 @@
       "vinted_title": "Barbour",
       "tier": "A",
       "replica_risk": "medium",
-      "item_count": 768447,
+      "item_count": 768478,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -117,7 +161,7 @@
       "vinted_title": "Evisu",
       "tier": "A",
       "replica_risk": "medium",
-      "item_count": 57306,
+      "item_count": 57309,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -139,7 +183,7 @@
       "vinted_title": "Carhartt WIP",
       "tier": "A",
       "replica_risk": "medium",
-      "item_count": 112006,
+      "item_count": 112007,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -150,7 +194,7 @@
       "vinted_title": "Ralph Lauren",
       "tier": "A",
       "replica_risk": "high",
-      "item_count": 13459415,
+      "item_count": 13459527,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -161,7 +205,7 @@
       "vinted_title": "Stüssy",
       "tier": "A",
       "replica_risk": "high",
-      "item_count": 799822,
+      "item_count": 799835,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -172,7 +216,7 @@
       "vinted_title": "Norse Projects",
       "tier": "A",
       "replica_risk": "low",
-      "item_count": 48364,
+      "item_count": 48369,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -183,7 +227,7 @@
       "vinted_title": "Polo Ralph Lauren",
       "tier": "A",
       "replica_risk": "high",
-      "item_count": 2191085,
+      "item_count": 2191304,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -216,7 +260,7 @@
       "vinted_title": "Salomon",
       "tier": "A",
       "replica_risk": "medium",
-      "item_count": 808547,
+      "item_count": 808586,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -238,7 +282,7 @@
       "vinted_title": "Carhartt",
       "tier": "A",
       "replica_risk": "medium",
-      "item_count": 3789112,
+      "item_count": 3789247,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -249,7 +293,7 @@
       "vinted_title": "Jordan",
       "tier": "B",
       "replica_risk": "high",
-      "item_count": 4422983,
+      "item_count": 4423158,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -260,7 +304,7 @@
       "vinted_title": "The North Face",
       "tier": "B",
       "replica_risk": "high",
-      "item_count": 3888672,
+      "item_count": 3888844,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -271,7 +315,7 @@
       "vinted_title": "Patagonia",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 671094,
+      "item_count": 671117,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -282,7 +326,7 @@
       "vinted_title": "Lacoste",
       "tier": "B",
       "replica_risk": "high",
-      "item_count": 5625997,
+      "item_count": 5626130,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -293,7 +337,7 @@
       "vinted_title": "Dr. Martens",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 2187120,
+      "item_count": 2187146,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -304,7 +348,7 @@
       "vinted_title": "Diesel",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 2493544,
+      "item_count": 2493590,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -315,7 +359,7 @@
       "vinted_title": "Berghaus",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 464952,
+      "item_count": 464969,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -326,7 +370,7 @@
       "vinted_title": "New Balance",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 4496651,
+      "item_count": 4497018,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -337,7 +381,7 @@
       "vinted_title": "Napapijri",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 1068646,
+      "item_count": 1068661,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -348,7 +392,7 @@
       "vinted_title": "Dickies",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 1258967,
+      "item_count": 1259008,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -359,7 +403,7 @@
       "vinted_title": "Helly Hansen",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 352080,
+      "item_count": 352084,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -370,7 +414,7 @@
       "vinted_title": "Jack Wolfskin",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 449272,
+      "item_count": 449288,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -381,7 +425,7 @@
       "vinted_title": "Ellesse",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 1142682,
+      "item_count": 1142697,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -392,7 +436,7 @@
       "vinted_title": "Nike",
       "tier": "B",
       "replica_risk": "high",
-      "item_count": 55985592,
+      "item_count": 55987384,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -403,7 +447,7 @@
       "vinted_title": "adidas",
       "tier": "B",
       "replica_risk": "high",
-      "item_count": 41613504,
+      "item_count": 41614902,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -414,7 +458,7 @@
       "vinted_title": "Puma",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 8700653,
+      "item_count": 8700801,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -425,7 +469,7 @@
       "vinted_title": "Reebok",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 2460042,
+      "item_count": 2460079,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -436,7 +480,7 @@
       "vinted_title": "Champion",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 2660389,
+      "item_count": 2660492,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -447,7 +491,7 @@
       "vinted_title": "Levi's",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 12856573,
+      "item_count": 12856982,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -458,7 +502,7 @@
       "vinted_title": "Tommy Hilfiger",
       "tier": "B",
       "replica_risk": "high",
-      "item_count": 11901863,
+      "item_count": 11902086,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -469,7 +513,7 @@
       "vinted_title": "Calvin Klein",
       "tier": "B",
       "replica_risk": "high",
-      "item_count": 5241032,
+      "item_count": 5241149,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -480,7 +524,7 @@
       "vinted_title": "Hugo Boss",
       "tier": "B",
       "replica_risk": "high",
-      "item_count": 3193290,
+      "item_count": 3193346,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -491,7 +535,7 @@
       "vinted_title": "Columbia",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 1124544,
+      "item_count": 1124630,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -502,7 +546,7 @@
       "vinted_title": "Timberland",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 2656355,
+      "item_count": 2656405,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -513,7 +557,7 @@
       "vinted_title": "Vans",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 4887422,
+      "item_count": 4887506,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -524,7 +568,7 @@
       "vinted_title": "Converse",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 4439016,
+      "item_count": 4439140,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -535,7 +579,7 @@
       "vinted_title": "FILA",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 2031749,
+      "item_count": 2031804,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -546,7 +590,7 @@
       "vinted_title": "Kappa",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 1130824,
+      "item_count": 1130848,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -557,7 +601,7 @@
       "vinted_title": "Umbro",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 820454,
+      "item_count": 820460,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -568,7 +612,7 @@
       "vinted_title": "Wrangler",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 1030960,
+      "item_count": 1031025,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -579,7 +623,7 @@
       "vinted_title": "Lee",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 953581,
+      "item_count": 953613,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -590,7 +634,7 @@
       "vinted_title": "Superdry",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 3851436,
+      "item_count": 3851478,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -601,7 +645,7 @@
       "vinted_title": "Quiksilver",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 1062086,
+      "item_count": 1062114,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -612,7 +656,7 @@
       "vinted_title": "Billabong",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 704001,
+      "item_count": 704021,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -623,7 +667,7 @@
       "vinted_title": "Volcom",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 382806,
+      "item_count": 382815,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -634,7 +678,7 @@
       "vinted_title": "GUESS",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 7361383,
+      "item_count": 7361530,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -645,7 +689,7 @@
       "vinted_title": "Asics",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 2378444,
+      "item_count": 2378515,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -656,7 +700,7 @@
       "vinted_title": "Under Armour",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 3729769,
+      "item_count": 3729896,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -667,7 +711,7 @@
       "vinted_title": "Fred Perry",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 849606,
+      "item_count": 849644,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -678,7 +722,7 @@
       "vinted_title": "Sergio Tacchini",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 296525,
+      "item_count": 296531,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -689,7 +733,7 @@
       "vinted_title": "Lotto",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 363668,
+      "item_count": 363676,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -700,7 +744,7 @@
       "vinted_title": "Diadora",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 347222,
+      "item_count": 347230,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -711,7 +755,7 @@
       "vinted_title": "Le Coq Sportif",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 595988,
+      "item_count": 596000,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -722,7 +766,7 @@
       "vinted_title": "Hummel",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 702717,
+      "item_count": 702746,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -733,7 +777,7 @@
       "vinted_title": "Russell Athletic",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 83910,
+      "item_count": 83911,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -744,7 +788,7 @@
       "vinted_title": "Starter",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 106699,
+      "item_count": 106703,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -766,7 +810,7 @@
       "vinted_title": "Lonsdale",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 212332,
+      "item_count": 212342,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -777,7 +821,7 @@
       "vinted_title": "Everlast",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 239111,
+      "item_count": 239116,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -788,7 +832,7 @@
       "vinted_title": "adidas Originals",
       "tier": "B",
       "replica_risk": "medium",
-      "item_count": 718825,
+      "item_count": 718860,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -799,7 +843,7 @@
       "vinted_title": "Nike ACG",
       "tier": "A",
       "replica_risk": "medium",
-      "item_count": 73489,
+      "item_count": 73491,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -810,7 +854,7 @@
       "vinted_title": "Erima",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 80011,
+      "item_count": 80012,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -821,7 +865,7 @@
       "vinted_title": "Donnay",
       "tier": "B",
       "replica_risk": "low",
-      "item_count": 36232,
+      "item_count": 36237,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null

@@ -27,6 +27,12 @@ brands:
   # Люкс: потрібен передусім заради кепок, див. title_blocklist_unless_brand
   - {name: "Gucci",               tier: S, replica_risk: high}
   - {name: "Louis Vuitton",       tier: S, replica_risk: high}
+  # Вуличні бренди, які на відміну від Trapstar та Corteiz реально тримають
+  # ціну: заміри по верхньому одягу на vinted.de підтвердили преміум-рівень.
+  - {name: "Vivienne Westwood",   tier: S, replica_risk: high}     # 275
+  - {name: "Supreme",             tier: S, replica_risk: high}     # 225
+  - {name: "A Bathing Ape",       tier: S, replica_risk: high}     # 150
+  - {name: "Palace",              tier: S, replica_risk: high}     # 149
 
   # --- A: робочий тір ---
   - {name: "Barbour",             tier: A, replica_risk: medium}   # 125
