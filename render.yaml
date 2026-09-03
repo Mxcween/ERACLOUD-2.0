@@ -15,6 +15,7 @@ services:
     runtime: python
     plan: free
     region: frankfurt          # найближчий до серверів Vinted
+    # Якщо зіллєш гілку в main, поміняй тут або в панелі Render
     branch: claude/vinted-brand-monitor-l7mgtx
     buildCommand: pip install -r requirements.txt
     startCommand: python -m vintsniper
