@@ -121,12 +121,18 @@ class TelegramNotifier:
         text = format_deal(deal)
         chat_id, topic_id = self._target(deal.channel)
 
-        if self.dry_run or not chat_id:
+        if self.dry_run:
             # Без цього сухий прогін мовчазний і незрозуміло, що саме бот знайшов
             plain = text.replace("<b>", "").replace("</b>", "")
             plain = plain.replace("<i>", "").replace("</i>", "")
             log.info("[dry-run] алерт у канал %s:\n%s\n%s", deal.channel, plain, deal.listing.url)
             return True
+
+        if not chat_id:
+            # Чат ще не відомий. Це НЕ успішна відправка: якщо збрехати тут,
+            # знахідка піде в лог як доставлена, запишеться в базу, а лот
+            # потрапить у список переглянутих і більше ніколи не спливе.
+            return False
 
         keyboard = {
             "inline_keyboard": [

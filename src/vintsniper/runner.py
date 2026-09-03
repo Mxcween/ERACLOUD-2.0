@@ -36,6 +36,8 @@ log = logging.getLogger(__name__)
 
 SEEN_RETENTION_SECONDS = 7 * 86400
 PRUNE_EVERY_CYCLES = 80
+# Скільки знахідок тримаємо, поки чат невідомий
+MAX_PENDING_ALERTS = 25
 
 
 class Sniper:
@@ -87,6 +89,9 @@ class Sniper:
         self.status_maps: dict[str, StatusMap] = {}
         self.muted: set[int] = set()
         self._alert_times: list[float] = []
+        # Знахідки, які трапились до того, як став відомий чат. Тримаємо їх,
+        # а не викидаємо: лот уже позначений переглянутим і вдруге не спливе.
+        self._pending: list[tuple[Deal, int]] = []
         self._telegram_offset = 0
         self._reject_stats: Counter[str] = Counter()
 
@@ -203,6 +208,11 @@ class Sniper:
         if self.fx.needs_refresh():
             await self.fx.refresh()
 
+        # Спершу команди: якщо /start прилетів щойно, чат стане відомий ще до
+        # того, як ми почнемо розсилати знахідки цього циклу.
+        await self._handle_commands()
+        await self._flush_pending(now_ts)
+
         self.muted = await asyncio.to_thread(self.repo.muted_brand_ids)
         brand_ids = [b for b in self.registry.ids if b not in self.muted]
         accepted = list((self.settings.conditions or {}).get("accepted_ids") or [6, 1, 2, 3])
@@ -314,8 +324,6 @@ class Sniper:
             log.info("причини відсіву: %s", dict(self._reject_stats.most_common(6)))
             self._reject_stats.clear()
 
-        await self._handle_commands()
-
         if self.cycle_count % PRUNE_EVERY_CYCLES == 0:
             await self._prune(now_ts)
 
@@ -356,6 +364,10 @@ class Sniper:
     async def _dispatch(self, deal: Deal, brand_id: int, now_ts: int) -> bool:
         if self.paused:
             return False
+        if not self.settings.dry_run and not self.notifier.has_target:
+            if len(self._pending) < MAX_PENDING_ALERTS:
+                self._pending.append((deal, brand_id))
+            return False
         if self._in_quiet_hours():
             return False
         if not self._alert_budget_left():
@@ -376,6 +388,15 @@ class Sniper:
                 deal.listing.url,
             )
         return ok
+
+    async def _flush_pending(self, now_ts: int) -> None:
+        """Досилає знахідки, які чекали, поки з'ясується чат."""
+        if not self._pending or not self.notifier.has_target:
+            return
+        queued, self._pending = self._pending, []
+        log.info("чат зʼявився, досилаю %s відкладених знахідок", len(queued))
+        for deal, brand_id in sorted(queued, key=lambda d: -d[0].profit_eur):
+            await self._dispatch(deal, brand_id, now_ts)
 
     def _alert_budget_left(self) -> bool:
         limit = int((self.settings.alerts or {}).get("max_alerts_per_hour", 60))

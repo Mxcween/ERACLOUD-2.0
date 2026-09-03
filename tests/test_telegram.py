@@ -46,3 +46,54 @@ class TestChannelRouting:
         n = notifier(chat_id_top="111", chat_id_all="111", topic_id_top=5, topic_id_all=9)
         assert n._target("top") == ("111", 5)
         assert n._target("all") == ("111", 9)
+
+
+class TestDeliveryHonesty:
+    """Регресія: без відомого чату відправка НЕ вважається успішною.
+
+    Раніше "сухий прогін" і "чат ще невідомий" ділили одну гілку і обидва
+    повертали True. Через це знахідка писалась у базу як доставлена, лот
+    ішов у список переглянутих, і людина її ніколи не бачила.
+    """
+
+    def _deal(self, listing_factory, settings, registry):
+        from vintsniper.engine.filters import Candidate
+        from vintsniper.engine.pricing import PriceBook
+        from vintsniper.engine.scoring import evaluate
+
+        now = 1_700_000_000
+        book = PriceBook(min_samples=4)
+        for _ in range(10):
+            book.record(53, 1206, "very_good", 100.0, now)
+        cand = Candidate(
+            listing=listing_factory(),
+            brand=registry.by_title("Nike"),
+            category=settings.category_by_id(1206),
+            price_eur=20.0,
+            bucket="very_good",
+        )
+        return evaluate(cand, settings=settings, price_book=book, shipping_eur=3.5, now_ts=now)
+
+    async def test_returns_false_when_chat_unknown(
+        self, listing_factory, settings, registry
+    ):
+        n = TelegramNotifier(
+            TelegramSettings(bot_token="123:ABC", chat_id_top="", chat_id_all=""),
+            dry_run=False,
+        )
+        try:
+            assert await n.send_deal(self._deal(listing_factory, settings, registry)) is False
+        finally:
+            await n.close()
+
+    async def test_dry_run_still_reports_success(
+        self, listing_factory, settings, registry
+    ):
+        n = TelegramNotifier(
+            TelegramSettings(bot_token="123:ABC", chat_id_top="", chat_id_all=""),
+            dry_run=True,
+        )
+        try:
+            assert await n.send_deal(self._deal(listing_factory, settings, registry)) is True
+        finally:
+            await n.close()
