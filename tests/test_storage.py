@@ -81,3 +81,14 @@ class TestChatAdoption:
     def test_chat_id_survives_restart(self, repo):
         repo.set_state("chat_id_top", "-1001234567890")
         assert repo.get_state("chat_id_top") == "-1001234567890"
+
+
+class TestDuplicateIdsInOneBatch:
+    def test_repeated_id_does_not_break_the_batch(self, repo):
+        """Дубль усередині пачки не повинен зносити всю вставку."""
+        result = repo.filter_unseen("PL", [1, 2, 2, 3, 1], 100)
+        assert result == {1, 2, 3}
+
+    def test_those_ids_are_remembered(self, repo):
+        repo.filter_unseen("PL", [1, 1, 2], 100)
+        assert repo.filter_unseen("PL", [1, 2, 3], 200) == {3}

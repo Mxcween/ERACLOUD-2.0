@@ -90,26 +90,61 @@ class VintedClient:
             if self._bootstrapped and not force:
                 return
             if force:
-                self._client.cookies.clear()
-                self._user_agent = random.choice(USER_AGENTS)
-                self._client.headers.update(self._base_headers())
+                self._rotate_identity()
 
-            await self.limiter.acquire()
-            resp = await self._client.get(
-                "/",
-                headers={"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
-            )
-            resp.raise_for_status()
-            names = set(self._client.cookies.keys())
-            if "access_token_web" not in names:
+            html_headers = {
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            }
+            for attempt in range(1, self.max_retries + 1):
+                await self.limiter.acquire()
+                try:
+                    resp = await self._client.get("/", headers=html_headers)
+                except httpx.HTTPError as exc:
+                    log.warning(
+                        "[%s] головна не відкрилась (%s/%s): %s",
+                        self.market.code, attempt, self.max_retries, exc,
+                    )
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+
+                if resp.status_code == 200:
+                    names = set(self._client.cookies.keys())
+                    if "access_token_web" not in names:
+                        log.warning(
+                            "[%s] сесія піднялась без access_token_web, куки: %s",
+                            self.market.code, sorted(names),
+                        )
+                    else:
+                        log.info("[%s] сесія піднята, куки отримані", self.market.code)
+                    self.limiter.relax()
+                    self._bootstrapped = True
+                    return
+
+                if resp.status_code in (403, 429):
+                    # Нас пригальмували ще на вході. Тиснути далі тим самим
+                    # відбитком безглуздо: чекаємо довше і міняємо User-Agent.
+                    self.limiter.penalise()
+                    delay = min(120.0, (2 ** attempt) * 10)
+                    log.warning(
+                        "[%s] головна віддала %s, чекаю %.0fс і міняю відбиток",
+                        self.market.code, resp.status_code, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    self._rotate_identity()
+                    continue
+
                 log.warning(
-                    "[%s] сесія піднялась без access_token_web, куки: %s",
-                    self.market.code,
-                    sorted(names),
+                    "[%s] головна віддала %s (%s/%s)",
+                    self.market.code, resp.status_code, attempt, self.max_retries,
                 )
-            else:
-                log.info("[%s] сесія піднята, куки отримані", self.market.code)
-            self._bootstrapped = True
+                await asyncio.sleep(2 ** attempt)
+
+            raise VintedBlocked(f"{self.market.code}: не вдалось підняти сесію")
+
+    def _rotate_identity(self) -> None:
+        self._client.cookies.clear()
+        self._user_agent = random.choice(USER_AGENTS)
+        self._client.headers.update(self._base_headers())
 
     # ------------------------------------------------------------------ запит
 

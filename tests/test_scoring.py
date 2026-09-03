@@ -134,3 +134,19 @@ class TestConditionEffect:
             settings, book,
         )
         assert as_new.resale_eur > as_good.resale_eur
+
+
+class TestRelistSignal:
+    def test_old_photo_on_a_fresh_listing_is_flagged(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Vinted віддає час ФОТО, не публікації. Старе фото = перевиставлення."""
+        listing = listing_factory(uploaded_ts=NOW - 20 * 86400, seen_ts=NOW)
+        cand = candidate(listing, registry, outerwear, 20.0)
+        deal = score(cand, settings, book_with(100.0))
+        assert any("перевиставлення" in n for n in deal.notes)
+
+    def test_recent_photo_is_not_flagged(self, listing_factory, settings, registry, outerwear):
+        cand = candidate(listing_factory(), registry, outerwear, 20.0)
+        deal = score(cand, settings, book_with(100.0))
+        assert not any("перевиставлення" in n for n in deal.notes)

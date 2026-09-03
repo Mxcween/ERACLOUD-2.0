@@ -37,15 +37,18 @@ class Repository:
         """
         if not item_ids:
             return set()
+        # Один і той самий id у пачці зламав би вставку через унікальний індекс,
+        # а разом з нею і всю пачку. Порядок зберігаємо.
+        unique_ids = list(dict.fromkeys(item_ids))
         with self._sf() as session:
             existing = set(
                 session.scalars(
                     select(SeenItem.item_id).where(
-                        SeenItem.market == market, SeenItem.item_id.in_(item_ids)
+                        SeenItem.market == market, SeenItem.item_id.in_(unique_ids)
                     )
                 ).all()
             )
-            fresh = [i for i in item_ids if i not in existing]
+            fresh = [i for i in unique_ids if i not in existing]
             if fresh:
                 session.add_all(
                     [SeenItem(item_id=i, market=market, first_seen_ts=now_ts) for i in fresh]
@@ -53,8 +56,13 @@ class Repository:
                 try:
                     session.commit()
                 except IntegrityError:
-                    # Гонка з іншим циклом. Безпечно: значить хтось уже записав.
+                    # Хтось записав ці ж лоти паралельно. Краще промовчати, ніж
+                    # ризикнути повторним алертом на ту саму річ.
                     session.rollback()
+                    log.warning(
+                        "[%s] гонка при записі %s переглянутих лотів, пропускаю цикл",
+                        market, len(fresh),
+                    )
                     return set()
             return set(fresh)
 

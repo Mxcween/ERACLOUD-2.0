@@ -55,7 +55,7 @@ def format_deal(deal: Deal) -> str:
         "",
         f"{title}",
         f"Розмір: <b>{size}</b> · Стан: {condition}",
-        f"{market} · опубліковано {listing.age_human} тому",
+        f"{market} · фото завантажено {listing.age_human} тому",
         "",
         f"Ціна: <b>{price_line}</b>",
         f"З доставкою: <b>{deal.cost_eur:.2f} EUR</b>",

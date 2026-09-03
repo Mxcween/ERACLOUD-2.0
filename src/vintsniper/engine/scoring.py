@@ -82,6 +82,11 @@ def evaluate(
         notes.append("продавець-магазин")
     if candidate.bucket == "good":
         notes.append("стан «добрий», зважай на фото")
+    age = candidate.listing.age_seconds
+    if age is not None and age > 7 * 86400:
+        # Оголошення щойно з'явилось у стрічці, а фото старе: річ перевиставляють.
+        # Часто це означає, що за старою ціною її ніхто не забрав.
+        notes.append("схоже на перевиставлення: фото старші за тиждень")
 
     return Deal(
         listing=candidate.listing,

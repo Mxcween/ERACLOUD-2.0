@@ -45,6 +45,7 @@ class Sniper:
         self.paused = False
         self.cycle_count = 0
         self.last_cycle_ts = 0
+        self._last_cycle_monotonic: float | None = None
         self.last_error: str | None = None
 
         polling = settings.polling or {}
@@ -184,6 +185,21 @@ class Sniper:
         self.last_cycle_ts = now_ts
         warming = self.cycle_count <= self.warmup_cycles
 
+        # Чи був розрив у роботі. На старті, після падіння або після того як
+        # Render приспав безкоштовний інстанс, уся стрічка виглядає новою, і без
+        # запобіжника бот вивалив би добу історії одним залпом.
+        gap = (
+            float("inf")
+            if self._last_cycle_monotonic is None
+            else time.monotonic() - self._last_cycle_monotonic
+        )
+        backlog_mode = gap > max(3 * self.cycle_seconds, 180.0)
+        self._last_cycle_monotonic = time.monotonic()
+        if backlog_mode and self.cycle_count > 1:
+            log.info(
+                "розрив у роботі %.0f хв, цей цикл беру тільки свіжі лоти", gap / 60
+            )
+
         if self.fx.needs_refresh():
             await self.fx.refresh()
 
@@ -194,6 +210,7 @@ class Sniper:
         observations: list[tuple[int, int, str, float, str, int]] = []
         deals: list[tuple[Deal, int]] = []
         fetched = 0
+        fresh_count = 0
 
         for market in self.settings.enabled_markets:
             client = self.clients.get(market.code)
@@ -228,6 +245,7 @@ class Sniper:
                     # оцінку продажу. Заразом це тримає базу в розумних розмірах.
                     if listing.item_id not in new_ids:
                         continue
+                    fresh_count += 1
 
                     bucket = self.status_maps[market.code].bucket(listing.status_title)
                     brand = self.registry.by_title(listing.brand_title)
@@ -252,9 +270,15 @@ class Sniper:
                                  market.code, server_ts)
                             )
 
-                    age = listing.age_seconds
-                    if age is not None and age > self.max_age:
-                        continue
+                    # Вік беремо з таймстемпа фото, а він бреше для перевиставлених
+                    # речей: фото старе, а оголошення щойно опубліковане. Тому в
+                    # звичайній роботі покладаємось на дедуплікацію (не бачили =
+                    # нове), а вік застосовуємо тільки щоб не вивалити backlog
+                    # після простою.
+                    if backlog_mode:
+                        age = listing.age_seconds
+                        if age is not None and age > self.max_age:
+                            continue
 
                     deal = self._assess(listing, market, category, bucket, server_ts)
                     if deal is not None and brand is not None:
@@ -271,10 +295,15 @@ class Sniper:
         elif deals:
             log.info("прогрів: %s знахідок не шлю, наповнюю базу цін", len(deals))
 
+        # Розмір книги цін навмисне НЕ логуємо як показник роботи: вікно на
+        # 120 записів по ключу насичується, і популярні бренди перестають
+        # збільшувати лічильник, хоч нові лоти й далі надходять.
         log.info(
-            "цикл %s: лотів=%s знахідок=%s відправлено=%s спостережень=%s ключів=%s%s",
+            "цикл %s: переглянуто=%s нових=%s знахідок=%s відправлено=%s "
+            "у базі цін=%s по %s ключах%s",
             self.cycle_count,
             fetched,
+            fresh_count,
             len(deals),
             sent,
             self.price_book.total_observations,
