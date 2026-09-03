@@ -67,7 +67,13 @@ def evaluate(
     # би саме взуття.
     multiple = round(resale_eur / candidate.price_eur, 2)
 
-    min_multiple = brand.min_multiple or float(scoring.get("min_multiple", 2.0))
+    # Планка множника залежить від тіру: x2 на куртці Stone Island це 90 євро,
+    # x2 на кросівках масового бренду це 12. Тому масовий бренд має бути
+    # справжньою крадіжкою, інакше стрічка забивається дрібницею.
+    by_tier = scoring.get("min_multiple_by_tier") or {}
+    min_multiple = brand.min_multiple or float(
+        by_tier.get(brand.tier, scoring.get("min_multiple", 2.0))
+    )
     # Коли ціну перепродажу ми не виміряли, а вгадали з базової таблиці, вимагаємо
     # більший запас. Інакше бот сипле маргінальними x2.01 на брендах, по яких
     # реальних даних ще немає.

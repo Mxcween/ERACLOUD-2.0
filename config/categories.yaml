@@ -1,71 +1,99 @@
-# Категорії Vinted. Всі id перевірені запитами до реального API
-# (див. scripts/verify_reference_data.py). Id категорій спільні для всіх ринків.
+# Категорії Vinted. Опитуються ТОЧНІ підкатегорії, а не батьківські.
 #
-# ceiling_eur     - максимальна ціна купівлі. Це головний запобіжник від
-#                   "футболка за 50 євро": дорожче за стелю лот не пройде
-#                   взагалі, яким би топовим не був бренд.
-# baseline_eur    - ціна перепродажу по тірах брендів, у євро. Це виміряні
-#                   медіани реальних оголошень на vinted.pl та vinted.de
-#                   (2688 лотів), приведені до стану "дуже добре". Працюють
-#                   поки бот не назбирав власної статистики по конкретному
-#                   бренду, далі він рахує медіану сам.
-# weight_kg       - для оцінки доставки.
-# min_profit_eur  - скільки чистими має лишитись, щоб алерт узагалі пішов.
-#                   Свій для кожної категорії, бо один спільний поріг просто
-#                   вимикає дешеві категорії: при 12 євро футболка масового
-#                   бренду не могла пройти НІКОЛИ, навіть якби її віддавали
-#                   безкоштовно, бо вся вона коштує 9. Значення виставлені за
-#                   виміряними медіанами (див. scripts/calibrate.py).
+# Це принципово. Батьківська категорія взуття тягнула сандалі й шльопанці,
+# батьківський спортивний одяг тягнув шорти та спортивні аксесуари. Кожен раз
+# доводилось вгадувати сміття за назвою і кожен раз знаходилась мова, якої в
+# списку немає. Точні підкатегорії прибирають цілі класи сміття структурно.
+#
+# ceiling_eur     - максимальна ціна купівлі, запобіжник від "брендової" речі
+#                   без запасу на перепродаж.
+# baseline_eur    - медіана цін на vinted.de, виміряна по кожній підкатегорії
+#                   окремо (по 192 лоти на категорію). Працює поки бот не
+#                   назбирав власної статистики по конкретному бренду.
+# min_profit_eur  - скільки чистими має лишитись. Свій для кожної категорії:
+#                   12 євро з куртки нормально, з футболки недосяжно.
 
 defaults:
   min_price_eur: 1.0
 
 categories:
-  - id: 76
+  # --- верх ---
+  - id: 77
     key: tops_tshirts
-    name: Футболки та топи
+    name: Футболки
     ceiling_eur: 16
     weight_kg: 0.3
-    baseline_eur: {S: 23, A: 15, B: 8}
-    min_profit_eur: 5
+    baseline_eur: {S: 40, A: 17, B: 8}
+    min_profit_eur: 6
+
+  - id: 5492
+    key: polo
+    name: Поло
+    ceiling_eur: 20
+    weight_kg: 0.35
+    baseline_eur: {S: 55, A: 25, B: 12}
+    min_profit_eur: 8
 
   - id: 79
     key: knitwear_hoodies
-    name: Світшоти, худі, светри
-    ceiling_eur: 30
+    name: Худі, светри, світшоти
+    ceiling_eur: 32
     weight_kg: 0.7
-    baseline_eur: {S: 50, A: 20, B: 12}
-    min_profit_eur: 7
+    baseline_eur: {S: 70, A: 35, B: 15}
+    min_profit_eur: 8
 
+  # --- верхній одяг ---
   - id: 1206
     key: outerwear
-    name: Верхній одяг, куртки
-    ceiling_eur: 55
+    name: Куртки та верхній одяг
+    ceiling_eur: 60
     weight_kg: 1.2
-    baseline_eur: {S: 180, A: 54, B: 26}
+    baseline_eur: {S: 215, A: 70, B: 35}
     min_profit_eur: 12
 
+  # --- низ ---
   - id: 257
     key: jeans
     name: Джинси
-    ceiling_eur: 30
+    ceiling_eur: 32
     weight_kg: 0.8
-    baseline_eur: {S: 30, A: 20, B: 16}
-    min_profit_eur: 7
+    baseline_eur: {S: 60, A: 30, B: 24}
+    min_profit_eur: 8
 
   - id: 34
     key: trousers
     name: Штани
+    ceiling_eur: 30
+    weight_kg: 0.7
+    baseline_eur: {S: 55, A: 30, B: 20}
+    min_profit_eur: 8
+
+  # --- спортивне: точні підкатегорії, БЕЗ шортів і аксесуарів ---
+  - id: 582
+    key: tracksuits
+    name: Спортивні костюми
+    ceiling_eur: 40
+    weight_kg: 1.0
+    baseline_eur: {S: 110, A: 60, B: 40}
+    min_profit_eur: 12
+
+  - id: 583
+    key: track_pants
+    name: Спортивні штани
+    ceiling_eur: 26
+    weight_kg: 0.6
+    baseline_eur: {S: 55, A: 30, B: 20}
+    min_profit_eur: 8
+
+  - id: 581
+    key: track_jackets
+    name: Олімпійки та вітрівки
     ceiling_eur: 28
     weight_kg: 0.7
-    baseline_eur: {S: 26, A: 19, B: 14}
-    min_profit_eur: 5
+    baseline_eur: {S: 55, A: 30, B: 20}
+    min_profit_eur: 8
 
-  # 1242 = Trainers, а не 1231 (усе взуття). Батьківська категорія містить
-  # підкатегорії "Flip-Flops & Slides", "Slippers", "Sandals", "Clogs",
-  # "Sports Shoes" (бутси й бігові), і саме звідти лізли тапки. Списком слів
-  # це не лікується: щоразу знаходилась мова, якої в списку нема - claquette,
-  # papucs, Adiletten. Опитуємо лише кросівки, і проблема зникає структурно.
+  # --- взуття: лише кросівки ---
   - id: 1242
     key: shoes
     name: Кросівки
@@ -74,6 +102,8 @@ categories:
     baseline_eur: {S: 100, A: 55, B: 46}
     min_profit_eur: 15
 
+  # Вимкнені навмисно. Аксесуари давали ремені, футляри та кепки; шорти й
+  # спортивні аксесуари прибрані тим, що ми не опитуємо батьківську 30.
   - id: 82
     key: accessories
     name: Сумки та аксесуари
@@ -81,25 +111,6 @@ categories:
     ceiling_eur: 30
     weight_kg: 0.5
     baseline_eur: {S: 45, A: 21, B: 13}
-    min_profit_eur: 10
-
-  # Вимкнені за замовчуванням: більше шуму, ніж користі. Постав enabled: true
-  # якщо захочеш їх теж.
-  - id: 30
-    key: activewear
-    name: Спортивний одяг
-    ceiling_eur: 30
-    weight_kg: 0.6
-    baseline_eur: {S: 60, A: 32, B: 18}
-    min_profit_eur: 7
-
-  - id: 32
-    key: suits_blazers
-    name: Костюми та піджаки
-    enabled: false
-    ceiling_eur: 40
-    weight_kg: 1.0
-    baseline_eur: {S: 60, A: 28, B: 18}
     min_profit_eur: 10
 
 # Стани речі за версією Vinted. Id перевірені емпірично на vinted.pl:

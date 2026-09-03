@@ -30,7 +30,7 @@ class TestDealMessage:
     def test_contains_the_facts_needed_to_decide(self, deal):
         text = format_deal(deal)
         assert "Nike" in text
-        assert "Верхній одяг" in text
+        assert "верхній одяг" in text.lower()
         assert "🇵🇱 Польща" in text
         assert "PLN" in text                 # ціна в валюті ринку
         assert "EUR" in text                 # і в євро

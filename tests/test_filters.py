@@ -10,7 +10,7 @@ def outerwear(settings):
 
 @pytest.fixture
 def tshirts(settings):
-    return settings.category_by_id(76)
+    return settings.category_by_id(77)
 
 
 @pytest.fixture
