@@ -15,7 +15,7 @@ def tshirts(settings):
 
 @pytest.fixture
 def shoes(settings):
-    return settings.category_by_id(1231)
+    return settings.category_by_id(1242)
 
 
 def run(listing, settings, registry, category, price_eur, bucket="very_good"):
@@ -308,3 +308,33 @@ class TestShoesMustHaveNumericSize:
             brand_title="Nike", title="Paire de lacets VANS", size_title="42"
         )
         assert isinstance(run(listing, settings, registry, shoes, 8.0, bucket="new"), Rejected)
+
+
+class TestShoeCategoryIsTrainersOnly:
+    """Тапки лікуються деревом категорій, а не списком слів.
+
+    Батьківська категорія 1231 містить підкатегорії Flip-Flops & Slides,
+    Slippers, Sandals, Clogs та Sports Shoes. Поки бот опитував її, тапки
+    лізли постійно, і кожен раз новою мовою: claquette, papucs, Adiletten.
+    Опитуємо 1242 Trainers, і жодна з тих підкатегорій просто не існує.
+    """
+
+    def test_shoe_feed_points_at_trainers(self, settings):
+        shoes = next(c for c in settings.enabled_categories if c.key == "shoes")
+        assert shoes.id == 1242, "1231 тягне сандалі й шльопанці разом з кросівками"
+
+    def test_slide_subcategories_are_never_polled(self, settings):
+        polled = {c.id for c in settings.enabled_categories}
+        for cid, what in [
+            (1231, "усе взуття"), (2969, "Flip-Flops & Slides"), (2659, "Slippers"),
+            (2968, "Sandals"), (2970, "Clogs & Mules"), (1452, "Sports Shoes"),
+            (2657, "Espadrilles"), (1238, "Formal Shoes"),
+        ]:
+            assert cid not in polled, f"{what} не має опитуватись"
+
+    def test_adiletten_would_be_blocked_even_if_misfiled(
+        self, listing_factory, settings, registry, shoes
+    ):
+        """Другий рубіж на випадок, якщо продавець запхне тапки в кросівки."""
+        listing = listing_factory(brand_title="Adidas", title="Adiletten adidas", size_title="46")
+        assert isinstance(run(listing, settings, registry, shoes, 4.9, bucket="new"), Rejected)

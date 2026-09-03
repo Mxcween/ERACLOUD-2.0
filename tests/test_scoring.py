@@ -242,9 +242,9 @@ class TestMultipleIgnoresShipping:
         cand = Candidate(
             listing=listing_factory(catalog_id=79, title="Nike hoodie"),
             brand=registry.by_title("Nike"), category=knitwear,
-            # Продаж 10.8, поріг профіту 5. За доставки 3.5 лишається 3.8 і лот
-            # не проходить, за доставки 1.0 лишається 6.3 і проходить.
-            price_eur=3.5, bucket="very_good",
+            # Продаж 10.8, поріг профіту 7. За доставки 3.5 лишається 4.8 і лот
+            # не проходить, за доставки 1.0 лишається 7.3 і проходить.
+            price_eur=2.5, bucket="very_good",
         )
         expensive = evaluate(
             cand, settings=settings, price_book=book, shipping_eur=3.5, now_ts=NOW
@@ -255,4 +255,4 @@ class TestMultipleIgnoresShipping:
         assert expensive is None, "за 3.5 доставки профіт не дотягує до порога"
         assert cheap is not None, "за 1.0 доставки та сама кофта вже вигідна"
         # Множник в обох випадках однаковий: доставка на нього не впливає
-        assert cheap.multiple == pytest.approx(15.0 * 0.72 / 3.5, abs=0.01)
+        assert cheap.multiple == pytest.approx(15.0 * 0.72 / 2.5, abs=0.01)

@@ -27,7 +27,7 @@ categories:
     ceiling_eur: 16
     weight_kg: 0.3
     baseline_eur: {S: 23, A: 15, B: 8}
-    min_profit_eur: 4
+    min_profit_eur: 5
 
   - id: 79
     key: knitwear_hoodies
@@ -35,7 +35,7 @@ categories:
     ceiling_eur: 30
     weight_kg: 0.7
     baseline_eur: {S: 50, A: 20, B: 12}
-    min_profit_eur: 5
+    min_profit_eur: 7
 
   - id: 1206
     key: outerwear
@@ -51,7 +51,7 @@ categories:
     ceiling_eur: 30
     weight_kg: 0.8
     baseline_eur: {S: 30, A: 20, B: 16}
-    min_profit_eur: 5
+    min_profit_eur: 7
 
   - id: 34
     key: trousers
@@ -59,14 +59,19 @@ categories:
     ceiling_eur: 28
     weight_kg: 0.7
     baseline_eur: {S: 26, A: 19, B: 14}
-    min_profit_eur: 4
+    min_profit_eur: 5
 
-  - id: 1231
+  # 1242 = Trainers, а не 1231 (усе взуття). Батьківська категорія містить
+  # підкатегорії "Flip-Flops & Slides", "Slippers", "Sandals", "Clogs",
+  # "Sports Shoes" (бутси й бігові), і саме звідти лізли тапки. Списком слів
+  # це не лікується: щоразу знаходилась мова, якої в списку нема - claquette,
+  # papucs, Adiletten. Опитуємо лише кросівки, і проблема зникає структурно.
+  - id: 1242
     key: shoes
-    name: Взуття
+    name: Кросівки
     ceiling_eur: 45
     weight_kg: 1.1
-    baseline_eur: {S: 67, A: 37, B: 31}
+    baseline_eur: {S: 100, A: 55, B: 46}
     min_profit_eur: 15
 
   - id: 82
@@ -86,7 +91,7 @@ categories:
     ceiling_eur: 30
     weight_kg: 0.6
     baseline_eur: {S: 60, A: 32, B: 18}
-    min_profit_eur: 5
+    min_profit_eur: 7
 
   - id: 32
     key: suits_blazers
@@ -178,6 +183,8 @@ title_blocklist:
   - slide
   - adilette
   - adilettes
+  - adiletten
+  - adilete
   - badelatschen
   - badeschuhe
   - hausschuhe
