@@ -31,6 +31,10 @@ def registry():
                 tier="A", replica_risk="medium",
             ),
             ResolvedBrand(
+                name="New Balance", brand_id=40, vinted_title="New Balance",
+                tier="B", replica_risk="medium",
+            ),
+            ResolvedBrand(
                 name="Gucci", brand_id=10, vinted_title="Gucci",
                 tier="S", replica_risk="high",
             ),

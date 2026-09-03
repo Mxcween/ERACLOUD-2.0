@@ -65,6 +65,12 @@ def screen(
     if junk is not None:
         return Rejected(f"не сама річ, а {junk!r}")
 
+    # Слова, заборонені саме в цій категорії. Бігові кросівки не продаються,
+    # але вітрівка з "running" у назві це нормальний лот.
+    local = find_word(listing.title, settings.blocklist_by_category.get(category.key))
+    if local is not None:
+        return Rejected(f"{local!r} у категорії {category.name.lower()}")
+
     # Кепки беремо лише в люксу: у масових брендів це мертвий товар.
     if brand.name.casefold() not in settings.cap_allowed_brands:
         cap = find_word(listing.title, settings.cap_words)

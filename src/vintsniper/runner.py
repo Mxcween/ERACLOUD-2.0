@@ -98,7 +98,7 @@ class Sniper:
     # ------------------------------------------------------------------ старт
 
     async def setup(self) -> None:
-        accepted = list((self.settings.conditions or {}).get("accepted_ids") or [6, 1, 2, 3])
+        accepted = self.settings.accepted_status_ids()
         buckets = (self.settings.conditions or {}).get("buckets") or {}
         probe_catalog = self.settings.enabled_categories[0].id
 
@@ -215,7 +215,6 @@ class Sniper:
 
         self.muted = await asyncio.to_thread(self.repo.muted_brand_ids)
         brand_ids = [b for b in self.registry.ids if b not in self.muted]
-        accepted = list((self.settings.conditions or {}).get("accepted_ids") or [6, 1, 2, 3])
 
         observations: list[tuple[int, int, str, float, str, int]] = []
         deals: list[tuple[Deal, int]] = []
@@ -231,7 +230,10 @@ class Sniper:
                     listings, server_ts = await client.fetch_catalog(
                         catalog_id=category.id,
                         brand_ids=brand_ids,
-                        status_ids=accepted,
+                        # Стани звужуємо вже на боці Vinted: у взутті "добре"
+                        # означає затерту підошву, і такі лоти краще не тягнути
+                        # взагалі, ніж фільтрувати їх у себе.
+                        status_ids=self.settings.accepted_status_ids(category.key),
                         per_page=self.per_page,
                     )
                 except (VintedError, httpx.HTTPError) as exc:

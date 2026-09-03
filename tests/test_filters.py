@@ -157,3 +157,44 @@ class TestCaps:
     def test_vintage_is_not_mistaken_for_a_hat(self, listing_factory, settings, registry, outerwear):
         listing = listing_factory(brand_title="Nike", title="Vintage Nike jacket")
         assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)
+
+
+class TestWornRunningShoes:
+    """Затерті бігові кросівки: правильний бренд, нульова ліквідність."""
+
+    @pytest.mark.parametrize(
+        "title",
+        ["Asics running", "Nike Laufschuhe", "Buty do biegania Asics",
+         "Chaussures de course Asics", "Trail running Salomon"],
+    )
+    def test_running_shoes_rejected(self, listing_factory, settings, registry, shoes, title):
+        listing = listing_factory(brand_title="Nike", title=title, size_title="42")
+        result = run(listing, settings, registry, shoes, 12.0)
+        assert isinstance(result, Rejected), title
+
+    def test_running_word_is_fine_on_a_jacket(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Саме той лот, який бот знайшов раніше і який блокувати не можна."""
+        listing = listing_factory(
+            brand_title="New Balance", title="Coupe vent Running New Balance", size_title="M"
+        )
+        assert isinstance(run(listing, settings, registry, outerwear, 15.0), Candidate)
+
+    def test_lifestyle_sneakers_still_pass(self, listing_factory, settings, registry, shoes):
+        for title in ["Nike Air Force 1 T. 41", "Jordan 4 oreo", "Nike Dunk Low"]:
+            listing = listing_factory(brand_title="Nike", title=title, size_title="42")
+            assert isinstance(run(listing, settings, registry, shoes, 12.0), Candidate), title
+
+
+class TestPerCategoryCondition:
+    def test_shoes_drop_the_good_condition(self, settings):
+        """У взутті "добре" це затерта підошва, тому такий стан не беремо."""
+        assert settings.accepted_status_ids("shoes") == [6, 1, 2]
+
+    def test_clothing_keeps_it(self, settings):
+        assert 3 in settings.accepted_status_ids("outerwear")
+        assert 3 in settings.accepted_status_ids()
+
+    def test_unknown_category_falls_back_to_default(self, settings):
+        assert settings.accepted_status_ids("nope") == settings.accepted_status_ids()

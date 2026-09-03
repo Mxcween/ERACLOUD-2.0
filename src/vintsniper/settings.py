@@ -87,6 +87,7 @@ class Settings:
     title_warn_words: list[str]
     cap_words: list[str]
     cap_allowed_brands: set[str]
+    blocklist_by_category: dict[str, list[str]]
     polling: dict[str, Any]
     scoring: dict[str, Any]
     seller: dict[str, Any]
@@ -109,6 +110,15 @@ class Settings:
 
     def category_by_id(self, catalog_id: int) -> Category | None:
         return next((c for c in self.categories if c.id == catalog_id), None)
+
+    def accepted_status_ids(self, category_key: str | None = None) -> list[int]:
+        """Дозволені стани. Категорія може звузити загальний список."""
+        conditions = self.conditions or {}
+        default = list(conditions.get("accepted_ids") or [6, 1, 2, 3])
+        if category_key is None:
+            return default
+        per_category = conditions.get("accepted_ids_by_category") or {}
+        return list(per_category.get(category_key) or default)
 
     def brand_by_name(self, name: str) -> Brand | None:
         key = name.strip().casefold()
@@ -195,6 +205,10 @@ def load_settings(config_dir: Path | None = None) -> Settings:
         title_warn_words=list(cats_raw.get("title_warn_words") or []),
         cap_words=list(_caps.get("words") or []),
         cap_allowed_brands={b.casefold() for b in (_caps.get("brands") or [])},
+        blocklist_by_category={
+            k: list(v or [])
+            for k, v in (cats_raw.get("title_blocklist_by_category") or {}).items()
+        },
         polling=main.get("polling", {}),
         scoring=main.get("scoring", {}),
         seller=main.get("seller", {}),

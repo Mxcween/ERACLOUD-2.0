@@ -87,6 +87,12 @@ categories:
 #   3 = добре, 4 = задовільне, 7 = несправне
 conditions:
   accepted_ids: [6, 1, 2, 3]
+
+  # Стан можна звужувати для окремих категорій. Для взуття "добре" означає
+  # затерту підошву і брудний верх: таке не перепродається, хоч бренд і
+  # правильний. Для одягу "добре" цілком робочий стан.
+  accepted_ids_by_category:
+    shoes: [6, 1, 2]
   buckets:
     new: [6, 1]
     very_good: [2]
@@ -212,3 +218,23 @@ title_blocklist_unless_brand:
     - bucket hat
     - hat
     - hats
+
+# Слова, які відсікають лот ЛИШЕ у своїй категорії.
+#
+# "running" не можна різати глобально: вітрівка "Coupe vent Running New
+# Balance" це нормальний лот верхнього одягу. А от бігові кросівки масових
+# брендів не перепродаються навіть у доброму стані.
+title_blocklist_by_category:
+  shoes:
+    - running
+    - runningschuhe
+    - laufschuhe
+    - laufschuh
+    - biegania
+    - biegowe
+    - hardloopschoenen
+    - "chaussures de course"
+    - "scarpe da running"
+    - trailrunning
+    - "trail running"
+    - futocipo
