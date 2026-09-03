@@ -82,3 +82,22 @@ brands:
   - {name: "Guess",               tier: B, replica_risk: medium}
   - {name: "Asics",               tier: B, replica_risk: medium}
   - {name: "Under Armour",        tier: B, replica_risk: medium}
+  - {name: "Fred Perry",          tier: B, replica_risk: medium}
+
+  # --- Вінтажний спортивний одяг ---
+  # Ніша 80-90-х: тренувальні костюми, вітрівки, олімпійки. Дешево на вході,
+  # стабільний попит, майже нема підробок бо підробляти нема сенсу.
+  - {name: "Sergio Tacchini",     tier: B, replica_risk: low}
+  - {name: "Lotto",               tier: B, replica_risk: low}
+  - {name: "Diadora",             tier: B, replica_risk: low}
+  - {name: "Le Coq Sportif",      tier: B, replica_risk: low}
+  - {name: "Hummel",              tier: B, replica_risk: low}
+  - {name: "Russell Athletic",    tier: B, replica_risk: low}
+  - {name: "Starter",             tier: B, replica_risk: low}
+  - {name: "Slazenger",           tier: B, replica_risk: low}
+  - {name: "Lonsdale",            tier: B, replica_risk: low}
+  - {name: "Everlast",            tier: B, replica_risk: low}
+  - {name: "Adidas Originals",    tier: B, replica_risk: medium}
+  - {name: "Nike ACG",            tier: A, replica_risk: medium}
+  - {name: "Erima",               tier: B, replica_risk: low}
+  - {name: "Donnay",              tier: B, replica_risk: low}

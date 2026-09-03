@@ -198,3 +198,34 @@ class TestPerCategoryCondition:
 
     def test_unknown_category_falls_back_to_default(self, settings):
         assert settings.accepted_status_ids("nope") == settings.accepted_status_ids()
+
+
+class TestConditionIsCheckedTwice:
+    """Звуження станів іде в запит до Vinted, але фільтр мусить ловити і сам.
+
+    Інакше зміна в API тихо повертає нам затерте взуття, і ніхто не помітить.
+    """
+
+    def test_worn_shoes_rejected_even_if_api_returns_them(
+        self, listing_factory, settings, registry, shoes
+    ):
+        listing = listing_factory(
+            brand_title="Nike", title="Pair de chaussure", size_title="41.5"
+        )
+        result = run(listing, settings, registry, shoes, 12.0, bucket="good")
+        assert isinstance(result, Rejected)
+        assert "стан" in result.reason
+
+    def test_same_shoes_in_very_good_pass(self, listing_factory, settings, registry, shoes):
+        listing = listing_factory(
+            brand_title="Nike", title="Pair de chaussure", size_title="41.5"
+        )
+        assert isinstance(run(listing, settings, registry, shoes, 12.0, bucket="very_good"), Candidate)
+
+    def test_clothing_still_accepts_good(self, listing_factory, settings, registry, outerwear):
+        listing = listing_factory(brand_title="Nike", title="Kurtka Nike")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0, bucket="good"), Candidate)
+
+    def test_accepted_buckets_match_status_ids(self, settings):
+        assert settings.accepted_buckets("shoes") == {"new", "very_good"}
+        assert "good" in settings.accepted_buckets("outerwear")

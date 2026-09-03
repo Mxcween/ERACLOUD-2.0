@@ -49,6 +49,12 @@ def screen(
     if bucket is None:
         return Rejected("невідомий стан")
 
+    # Другий рубіж. Звужений список станів ми вже передали у запит до Vinted,
+    # але покладатись лише на це не варто: якщо параметр колись перестане
+    # працювати, затерте взуття почне проходити мовчки.
+    if bucket not in settings.accepted_buckets(category.key):
+        return Rejected(f"стан {bucket!r} не підходить для категорії {category.name.lower()}")
+
     min_price = float((settings.category_defaults or {}).get("min_price_eur", 1.0))
     if price_eur < min_price:
         return Rejected(f"ціна нижча за мінімум ({min_price:.0f} EUR)")

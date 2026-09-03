@@ -120,6 +120,15 @@ class Settings:
         per_category = conditions.get("accepted_ids_by_category") or {}
         return list(per_category.get(category_key) or default)
 
+    def accepted_buckets(self, category_key: str | None = None) -> set[str]:
+        """Стани у вигляді назв відрізків, як їх бачить оцінювач цін."""
+        allowed = set(self.accepted_status_ids(category_key))
+        buckets = (self.conditions or {}).get("buckets") or {}
+        return {
+            name for name, ids in buckets.items()
+            if any(int(i) in allowed for i in (ids or []))
+        }
+
     def brand_by_name(self, name: str) -> Brand | None:
         key = name.strip().casefold()
         return next((b for b in self.brands if b.name.casefold() == key), None)
