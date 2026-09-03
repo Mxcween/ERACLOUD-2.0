@@ -23,7 +23,6 @@ brands:
   - {name: "C.P. Company",        tier: S, replica_risk: high}     # 180
   - {name: "Arc'teryx",           tier: S, replica_risk: high}     # 179
   - {name: "Burberry",            tier: S, replica_risk: high}     # 170
-  - {name: "Avirex",              tier: S, replica_risk: medium}   # 150
   # Люкс: потрібен передусім заради кепок, див. title_blocklist_unless_brand
   - {name: "Gucci",               tier: S, replica_risk: high}
   - {name: "Louis Vuitton",       tier: S, replica_risk: high}
@@ -36,17 +35,11 @@ brands:
 
   # --- A: робочий тір ---
   - {name: "Barbour",             tier: A, replica_risk: medium}   # 125
-  - {name: "Evisu",               tier: A, replica_risk: medium}   # 125
-  - {name: "Montbell",            tier: A, replica_risk: low}      # 120
   - {name: "Carhartt WIP",        tier: A, replica_risk: medium}   # 80
   - {name: "Ralph Lauren",        tier: A, replica_risk: high}     # 80
   - {name: "Stussy",              tier: A, replica_risk: high}     # 80
-  - {name: "Norse Projects",      tier: A, replica_risk: low}      # 80
   - {name: "Polo Ralph Lauren",   tier: A, replica_risk: high}     # 74
-  - {name: "Oakley",              tier: A, replica_risk: medium}   # 72
-  - {name: "Schott",              tier: A, replica_risk: medium}   # 72
   - {name: "Salomon",             tier: A, replica_risk: medium}   # 70
-  - {name: "Iceberg",             tier: A, replica_risk: medium}   # 70
   - {name: "Carhartt",            tier: A, replica_risk: medium}   # 55
 
   # --- B: масові бренди, основний обсяг ---
@@ -55,13 +48,8 @@ brands:
   - {name: "Patagonia",           tier: B, replica_risk: medium}   # 50
   - {name: "Lacoste",             tier: B, replica_risk: high}     # 50
   - {name: "Dr. Martens",         tier: B, replica_risk: medium}   # 50
-  - {name: "Diesel",              tier: B, replica_risk: medium}   # 44
-  - {name: "Berghaus",            tier: B, replica_risk: low}      # 43
   - {name: "New Balance",         tier: B, replica_risk: medium}   # 40
   - {name: "Napapijri",           tier: B, replica_risk: medium}   # 40
-  - {name: "Dickies",             tier: B, replica_risk: low}      # 35
-  - {name: "Helly Hansen",        tier: B, replica_risk: low}      # 35
-  - {name: "Jack Wolfskin",       tier: B, replica_risk: low}      # 27
   - {name: "Ellesse",             tier: B, replica_risk: low}      # 17
   - {name: "Nike",                tier: B, replica_risk: high}
   - {name: "Adidas",              tier: B, replica_risk: high}
@@ -72,7 +60,6 @@ brands:
   - {name: "Tommy Hilfiger",      tier: B, replica_risk: high}
   - {name: "Calvin Klein",        tier: B, replica_risk: high}
   - {name: "Columbia",            tier: B, replica_risk: low}
-  - {name: "Timberland",          tier: B, replica_risk: medium}
   - {name: "Vans",                tier: B, replica_risk: medium}
   - {name: "Converse",            tier: B, replica_risk: medium}
   - {name: "Fila",                tier: B, replica_risk: low}
@@ -92,16 +79,5 @@ brands:
   # Ніша 80-90-х: тренувальні костюми, вітрівки, олімпійки. Дешево на вході,
   # стабільний попит, майже нема підробок бо підробляти нема сенсу.
   - {name: "Sergio Tacchini",     tier: B, replica_risk: low}
-  - {name: "Lotto",               tier: B, replica_risk: low}
-  - {name: "Diadora",             tier: B, replica_risk: low}
-  - {name: "Le Coq Sportif",      tier: B, replica_risk: low}
-  - {name: "Hummel",              tier: B, replica_risk: low}
-  - {name: "Russell Athletic",    tier: B, replica_risk: low}
-  - {name: "Starter",             tier: B, replica_risk: low}
-  - {name: "Slazenger",           tier: B, replica_risk: low}
-  - {name: "Lonsdale",            tier: B, replica_risk: low}
-  - {name: "Everlast",            tier: B, replica_risk: low}
   - {name: "Adidas Originals",    tier: B, replica_risk: medium}
   - {name: "Nike ACG",            tier: A, replica_risk: medium}
-  - {name: "Erima",               tier: B, replica_risk: low}
-  - {name: "Donnay",              tier: B, replica_risk: low}

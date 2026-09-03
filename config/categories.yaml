@@ -67,11 +67,12 @@ categories:
     ceiling_eur: 45
     weight_kg: 1.1
     baseline_eur: {S: 67, A: 37, B: 31}
-    min_profit_eur: 14
+    min_profit_eur: 15
 
   - id: 82
     key: accessories
     name: Сумки та аксесуари
+    enabled: false
     ceiling_eur: 30
     weight_kg: 0.5
     baseline_eur: {S: 45, A: 21, B: 13}
@@ -82,11 +83,10 @@ categories:
   - id: 30
     key: activewear
     name: Спортивний одяг
-    enabled: false
     ceiling_eur: 30
     weight_kg: 0.6
-    baseline_eur: {S: 45, A: 20, B: 12}
-    min_profit_eur: 7
+    baseline_eur: {S: 60, A: 32, B: 18}
+    min_profit_eur: 5
 
   - id: 32
     key: suits_blazers
