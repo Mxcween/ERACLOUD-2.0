@@ -24,6 +24,7 @@ from .engine.scoring import evaluate
 from .health import HealthServer
 from .models import Deal, Listing, utc_now_ts
 from .notify.formatting import HELP_TEXT, format_startup, format_stats
+from .notify.discord import DiscordNotifier
 from .notify.telegram import Command, TelegramNotifier
 from .settings import CONFIG_DIR, Category, Market, Settings
 from .storage.db import build_engine, build_session_factory
@@ -83,6 +84,11 @@ class Sniper:
             settings.telegram,
             send_photo=bool((settings.alerts or {}).get("send_photo", True)),
             dry_run=settings.dry_run or not settings.telegram.configured,
+        )
+        self.discord = DiscordNotifier(
+            settings.discord.webhooks,
+            settings.discord.bounds,
+            dry_run=settings.dry_run,
         )
 
         self.clients: dict[str, VintedClient] = {}
@@ -167,6 +173,7 @@ class Sniper:
         for client in self.clients.values():
             await client.close()
         await self.notifier.close()
+        await self.discord.close()
 
     # ------------------------------------------------------------- цикл роботи
 
@@ -386,18 +393,35 @@ class Sniper:
             )
             return False
 
-        ok = await self.notifier.send_deal(deal, brand_id=brand_id)
+        # Telegram і Discord незалежні. Якщо чат Telegram ще невідомий, а токен
+        # заданий, лот чекає в черзі (_flush_pending); Discord тим часом працює
+        # своїм маршрутом за ціною і на це чекання не зважає.
+        sent_telegram = False
+        if self.settings.dry_run or self.notifier.has_target:
+            sent_telegram = await self.notifier.send_deal(deal, brand_id=brand_id)
+        elif self.settings.telegram.configured and len(self._pending) < MAX_PENDING_ALERTS:
+            self._pending.append((deal, brand_id))
+
+        sent_discord = await self.discord.send_deal(deal) if self.discord.configured else False
+
+        ok = sent_telegram or sent_discord
         if ok:
             self._alert_times.append(time.monotonic())
             self._remember_seller(deal.listing.seller_id)
             await asyncio.to_thread(self.repo.log_alert, deal, now_ts)
+            via = []
+            if sent_telegram:
+                via.append("tg")
+            if sent_discord:
+                via.append(f"discord#{self.discord.tier_index(deal.price_eur)}")
             log.info(
-                "→ %s %s %.2f EUR x%.2f (+%.2f) %s",
+                "→ %s %s %.2f EUR x%.2f (+%.2f) [%s] %s",
                 deal.channel.upper(),
                 deal.listing.brand_title,
                 deal.cost_eur,
                 deal.multiple,
                 deal.profit_eur,
+                "+".join(via),
                 deal.listing.url,
             )
         return ok

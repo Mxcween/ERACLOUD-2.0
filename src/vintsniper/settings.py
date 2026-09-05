@@ -76,6 +76,23 @@ class TelegramSettings:
         return bool(self.bot_token)
 
 
+@dataclass(frozen=True)
+class DiscordSettings:
+    """Вебхуки, розкладені по цінових каналах.
+
+    webhooks[i] покриває лоти собівартістю до bounds[i] включно, останній
+    вебхук - усе, що дорожче за останню межу. Довжина webhooks завжди на
+    один більша за довжину bounds.
+    """
+
+    webhooks: list[str]
+    bounds: list[float]
+
+    @property
+    def configured(self) -> bool:
+        return any(url.strip() for url in self.webhooks)
+
+
 @dataclass
 class Settings:
     markets: list[Market]
@@ -95,6 +112,7 @@ class Settings:
     alerts: dict[str, Any]
     fx: dict[str, Any]
     telegram: TelegramSettings
+    discord: DiscordSettings
     database_url: str
     log_level: str = "INFO"
     port: int = 10000
@@ -197,6 +215,13 @@ def load_settings(config_dir: Path | None = None) -> Settings:
         topic_id_all=_as_int(os.getenv("TELEGRAM_TOPIC_ID_ALL")),
     )
 
+    discord_bounds = [float(x) for x in (main.get("discord", {}).get("price_tier_bounds") or [])]
+    # DISCORD_WEBHOOK_0, DISCORD_WEBHOOK_1, ... по одному на кожен ціновий канал
+    discord_webhooks = [
+        os.getenv(f"DISCORD_WEBHOOK_{i}", "").strip() for i in range(len(discord_bounds) + 1)
+    ]
+    discord = DiscordSettings(webhooks=discord_webhooks, bounds=discord_bounds)
+
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
         (ROOT / "data").mkdir(exist_ok=True)
@@ -228,6 +253,7 @@ def load_settings(config_dir: Path | None = None) -> Settings:
         alerts=main.get("alerts", {}),
         fx=main.get("fx", {}),
         telegram=telegram,
+        discord=discord,
         database_url=database_url,
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         port=int(os.getenv("PORT", "10000")),
