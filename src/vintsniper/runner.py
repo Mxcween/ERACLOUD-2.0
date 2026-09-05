@@ -19,6 +19,7 @@ from .engine.conditions import StatusMap
 from .engine.filters import Candidate, Rejected, screen
 from .engine.fx import FxConverter
 from .engine.pricing import PriceBook
+from .engine.ranges import PriceRange, suggestions
 from .engine.schedule import in_quiet_hours
 from .engine.scoring import evaluate
 from .health import HealthServer
@@ -103,6 +104,9 @@ class Sniper:
         # а не викидаємо: лот уже позначений переглянутим і вдруге не спливе.
         self._pending: list[tuple[Deal, int]] = []
         self._telegram_offset = 0
+        # Полиця цін, у якій власник зараз хоче бачити алерти в Telegram.
+        # Discord це не чіпає: там канали розкладені по ціні самі.
+        self.alert_range = PriceRange.open()
         self._reject_stats: Counter[str] = Counter()
 
     # ------------------------------------------------------------------ старт
@@ -137,6 +141,14 @@ class Sniper:
         if saved_offset:
             self._telegram_offset = int(saved_offset)
         self.muted = await asyncio.to_thread(self.repo.muted_brand_ids)
+
+        saved_range = await asyncio.to_thread(self.repo.get_state, "alert_range")
+        if saved_range:
+            parsed = PriceRange.parse(saved_range)
+            if parsed is not None:
+                self.alert_range = parsed
+                if not parsed.is_open:
+                    log.info("діапазон алертів: %s EUR", parsed.label)
 
         if not self.settings.telegram.configured:
             log.warning(
@@ -377,10 +389,6 @@ class Sniper:
     async def _dispatch(self, deal: Deal, brand_id: int, now_ts: int) -> bool:
         if self.paused:
             return False
-        if not self.settings.dry_run and not self.notifier.has_target:
-            if len(self._pending) < MAX_PENDING_ALERTS:
-                self._pending.append((deal, brand_id))
-            return False
         if self._in_quiet_hours():
             return False
         if not self._alert_budget_left():
@@ -397,7 +405,13 @@ class Sniper:
         # заданий, лот чекає в черзі (_flush_pending); Discord тим часом працює
         # своїм маршрутом за ціною і на це чекання не зважає.
         sent_telegram = False
-        if self.settings.dry_run or self.notifier.has_target:
+        in_range = self.alert_range.contains(deal.price_eur)
+        if not in_range:
+            log.debug(
+                "%s поза діапазоном %s, у Telegram не шлю",
+                deal.listing.url, self.alert_range.label,
+            )
+        elif self.settings.dry_run or self.notifier.has_target:
             sent_telegram = await self.notifier.send_deal(deal, brand_id=brand_id)
         elif self.settings.telegram.configured and len(self._pending) < MAX_PENDING_ALERTS:
             self._pending.append((deal, brand_id))
@@ -542,6 +556,9 @@ class Sniper:
                 f"з {len(self.registry)}\nЗаглушені: {muted_names}"
             )
 
+        if name == "range":
+            return await self._set_range(args)
+
         if name == "pause":
             self.paused = True
             return "⏸ Алерти на паузі. /resume щоб продовжити."
@@ -567,6 +584,41 @@ class Sniper:
             return f"🔔 {brand.name} повернувся." if changed else f"{brand.name} і так не заглушений."
 
         return None
+
+    async def _set_range(self, args: str) -> str:
+        """Ціновий фільтр на алерти в Telegram, який власник крутить на ходу."""
+        options = " | ".join(suggestions(self.settings.discord.bounds))
+        if not args:
+            current = (
+                "весь діапазон"
+                if self.alert_range.is_open
+                else f"<b>{self.alert_range.label}</b> EUR"
+            )
+            return (
+                f"Зараз шлю: {current}\n\n"
+                f"Змінити: <code>/range {options.replace(' | ', '</code> | <code>/range ')}</code>\n"
+                "Або свій: <code>/range 20-35</code>, <code>/range до 25</code>, "
+                "<code>/range від 60</code>\n"
+                "<code>/range all</code> - зняти обмеження"
+            )
+
+        parsed = PriceRange.parse(args)
+        if parsed is None:
+            return (
+                f"Не зрозумів {args!r}. Приклади: <code>/range 0-15</code>, "
+                f"<code>/range 45+</code>, <code>/range all</code>.\n"
+                f"Готові варіанти: {options}"
+            )
+
+        self.alert_range = parsed
+        await asyncio.to_thread(self.repo.set_state, "alert_range", parsed.label)
+        if parsed.is_open:
+            return "🎯 Знято обмеження по ціні, шлю всі знахідки."
+        return (
+            f"🎯 Тепер у Telegram тільки лоти <b>{parsed.label}</b> EUR "
+            "(ціна лота, без доставки).\nПороги вигоди не змінились, "
+            "Discord так само розкладає все по своїх каналах."
+        )
 
     async def _on_callback(self, data: str, chat_id: str) -> str | None:
         if not data.startswith("mute:"):
