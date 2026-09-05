@@ -5,8 +5,16 @@
     профіт    = продаж - вартість
     множник   = продаж / вартість
 
-Множник 2.0 означає "гроші відіб'ються вдвічі", тобто чистий профіт дорівнює
-вкладеному. Це нижня межа, нижче бот мовчить.
+Лот проходить, якщо виконується ХОЧ ОДНА з двох умов:
+  1. множник дотягує до планки свого тіру (S 2.0, A 2.2, B 2.8);
+  2. профіт великий сам по собі (від 40 EUR) при пристойному множнику (1.6+).
+
+Другий шлях потрібен тому, що планка множника, налаштована проти дрібниці,
+заразом ріже й дорогі лоти з солідними грошима: куртка 55 -> 130 це +75 у
+кишеню, але x2.36 не дотягує до x2.8 для масового бренду. Такі лоти - саме
+те, на чому заробляють найбільше.
+
+Поріг профіту по категорії обов'язковий на обох шляхах.
 """
 from __future__ import annotations
 
@@ -91,8 +99,26 @@ def evaluate(
     )
     top_multiple = float(scoring.get("top_multiple", 3.0))
     top_profit = float(scoring.get("top_profit_eur", 20.0))
+    profit_override = float(scoring.get("profit_override_eur", 0) or 0)
+    override_min_multiple = float(scoring.get("override_min_multiple", 1.6))
+    top_profit_override = float(scoring.get("top_profit_override_eur", 0) or 0)
 
-    if multiple < min_multiple or profit_eur < min_profit:
+    # Поріг профіту по категорії - обов'язковий завжди, це запобіжник від
+    # лотів, з яких грошей не буде взагалі.
+    if profit_eur < min_profit:
+        return None
+
+    # Далі два рівноправні шляхи. Перший - звичний множник по тіру, він тримає
+    # якість і не пускає дрібницю. Другий - великі гроші самі по собі: дорога
+    # річ із профітом +75 варта уваги, навіть якщо множник x2.36 не дотягнув
+    # до x2.8, бо в кишені від неї більше, ніж від трьох дешевих x3.
+    passes_multiple = multiple >= min_multiple
+    passes_money = (
+        profit_override > 0
+        and profit_eur >= profit_override
+        and multiple >= override_min_multiple
+    )
+    if not (passes_multiple or passes_money):
         return None
 
     # Занадто добре, щоб бути правдою. Нові кросівки за 1.75 євро це не
@@ -103,7 +129,13 @@ def evaluate(
     if max_multiple and multiple > max_multiple:
         return None
 
-    channel = "top" if (multiple >= top_multiple and profit_eur >= top_profit) else "all"
+    # ТОП - або рекордний множник із пристойними грошима, або дуже великі
+    # гроші незалежно від множника. Куртка з +120 у кишеню це найкраща
+    # знахідка дня, навіть якщо множник у неї "лише" x2.4.
+    is_top = (multiple >= top_multiple and profit_eur >= top_profit) or (
+        top_profit_override > 0 and profit_eur >= top_profit_override
+    )
+    channel = "top" if is_top else "all"
 
     notes: list[str] = []
     if not estimate.is_measured:

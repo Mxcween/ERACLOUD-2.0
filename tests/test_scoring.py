@@ -302,3 +302,76 @@ class TestBaitListings:
         cand = candidate(listing_factory(), registry, outerwear, 15.0)
         deal = score(cand, settings, book_with(127.0))
         assert any("підозріло дешево" in n for n in deal.notes)
+
+
+class TestBigMoneyOverride:
+    """Другий шлях проходження: великі гроші при пристойному множнику.
+
+    Планка множника по тіру налаштована проти дрібниці (x2 на кросівках Kappa
+    це 12 євро). Але вона ж ріже протилежне: дорогу куртку 55 -> 130, де
+    множник x2.36 не дотягує до x2.8 для масового бренду, хоч у кишеню від неї
+    +75. Саме на таких лотах заробляють найбільше, тому вони проходять
+    окремим шляхом.
+    """
+
+    def test_expensive_lot_passes_on_money_despite_low_multiple(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        # Nike (масовий, потрібен x2.8): медіана 140 при ціні 45 дає лише x2.24,
+        # але це +55.8 у кишеню
+        cand = candidate(listing_factory(), registry, outerwear, 45.0)
+        deal = score(cand, settings, book_with(140.0))
+        assert deal is not None
+        assert deal.multiple < 2.8, "множник свідомо нижчий за планку тіру"
+        assert deal.profit_eur >= 40.0
+
+    def test_cheap_lot_with_same_multiple_is_still_rejected(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Той самий множник, але дешева річ - грошей нема, тож і сенсу нема."""
+        cand = candidate(listing_factory(), registry, outerwear, 8.0)
+        assert score(cand, settings, book_with(25.0)) is None
+
+    def test_money_override_still_needs_a_decent_multiple(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Профіт великий, але множник x1.3 - це вже не знахідка."""
+        cand = candidate(listing_factory(), registry, outerwear, 150.0)
+        deal = score(cand, settings, book_with(270.0))
+        assert deal is None, "x1.3 не проходить навіть з великим профітом"
+
+    def test_category_profit_floor_applies_on_both_paths(
+        self, listing_factory, settings, registry
+    ):
+        """Поріг категорії обов'язковий завжди, обхідних шляхів немає."""
+        tshirts = settings.category_by_id(77)
+        book = book_with(9.0, brand_id=53, catalog_id=77)
+        cand = Candidate(
+            listing=listing_factory(catalog_id=77, title="Nike tee"),
+            brand=registry.by_title("Nike"), category=tshirts,
+            price_eur=1.0, bucket="very_good",
+        )
+        deal = evaluate(cand, settings=settings, price_book=book, shipping_eur=3.5, now_ts=NOW)
+        assert deal is None, "профіт 5.5 нижчий за поріг категорії"
+
+
+class TestTopChannelOnMoney:
+    def test_huge_profit_reaches_top_without_record_multiple(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Stone Island 55 -> 131: множник x2.38, але +76 це знахідка дня."""
+        si = registry.by_title("Stone Island")
+        cand = candidate(listing_factory(brand_title="Stone Island"), registry, outerwear, 55.0,
+                         brand="Stone Island")
+        deal = score(cand, settings, book_with(182.0, brand_id=si.brand_id))
+        assert deal is not None
+        assert deal.multiple < 3.0
+        assert deal.channel == "top"
+
+    def test_modest_money_stays_in_the_regular_channel(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        cand = candidate(listing_factory(), registry, outerwear, 20.0)
+        deal = score(cand, settings, book_with(80.0))
+        assert deal is not None
+        assert deal.channel == "all"
