@@ -47,10 +47,8 @@ brands:
   - {name: "The North Face",      tier: B, replica_risk: high}     # 50
   - {name: "Patagonia",           tier: B, replica_risk: medium}   # 50
   - {name: "Lacoste",             tier: B, replica_risk: high}     # 50
-  - {name: "Dr. Martens",         tier: B, replica_risk: medium}   # 50
   - {name: "New Balance",         tier: B, replica_risk: medium}   # 40
   - {name: "Napapijri",           tier: B, replica_risk: medium}   # 40
-  - {name: "Ellesse",             tier: B, replica_risk: low}      # 17
   - {name: "Nike",                tier: B, replica_risk: high}
   - {name: "Adidas",              tier: B, replica_risk: high}
   - {name: "Puma",                tier: B, replica_risk: medium}
@@ -59,20 +57,15 @@ brands:
   - {name: "Levi's",              tier: B, replica_risk: medium}
   - {name: "Tommy Hilfiger",      tier: B, replica_risk: high}
   - {name: "Calvin Klein",        tier: B, replica_risk: high}
-  - {name: "Columbia",            tier: B, replica_risk: low}
   - {name: "Vans",                tier: B, replica_risk: medium}
   - {name: "Converse",            tier: B, replica_risk: medium}
   - {name: "Fila",                tier: B, replica_risk: low}
   - {name: "Kappa",               tier: B, replica_risk: low}
-  - {name: "Umbro",               tier: B, replica_risk: low}
-  - {name: "Wrangler",            tier: B, replica_risk: low}
-  - {name: "Lee",                 tier: B, replica_risk: low}
   - {name: "Asics",               tier: B, replica_risk: medium}
   - {name: "Fred Perry",          tier: B, replica_risk: medium}
 
   # --- Вінтажний спортивний одяг ---
   # Ніша 80-90-х: тренувальні костюми, вітрівки, олімпійки. Дешево на вході,
   # стабільний попит, майже нема підробок бо підробляти нема сенсу.
-  - {name: "Sergio Tacchini",     tier: B, replica_risk: low}
   - {name: "Adidas Originals",    tier: B, replica_risk: medium}
   - {name: "Nike ACG",            tier: A, replica_risk: medium}
