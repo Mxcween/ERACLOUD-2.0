@@ -35,6 +35,17 @@ from .vinted.brands import BrandRegistry
 from .vinted.client import VintedBlocked, VintedClient, VintedError
 from .vinted.ratelimit import RateLimiter
 
+try:  # студія необов'язкова: без неї снайпер працює як раніше
+    from studio.bot import StudioBot
+    from studio.settings import load_studio_settings
+except ImportError:  # pragma: no cover
+    StudioBot = None  # type: ignore[assignment]
+
+    def load_studio_settings():  # type: ignore[misc]
+        class _Off:
+            bot_token = ""
+        return _Off()
+
 log = logging.getLogger(__name__)
 
 SEEN_RETENTION_SECONDS = 7 * 86400
@@ -745,15 +756,33 @@ async def main(settings: Settings) -> None:
     sniper = Sniper(settings)
     health = HealthServer(settings.port, sniper.health_status)
     await health.start()
-    listener: asyncio.Task[None] | None = None
+
+    # Студійний бот - окремий продукт з власним токеном, але живе в цьому ж
+    # процесі: на безкоштовному Render один сервіс, один пінгер, нуль грошей.
+    studio_settings = load_studio_settings()
+    studio = (
+        StudioBot(
+            studio_settings,
+            get_state=sniper.repo.get_state,
+            set_state=sniper.repo.set_state,
+        )
+        if studio_settings.bot_token
+        else None
+    )
+
+    tasks: list[asyncio.Task[None]] = []
     try:
         await sniper.setup()
-        listener = asyncio.create_task(sniper.listen_commands())
+        tasks.append(asyncio.create_task(sniper.listen_commands()))
+        if studio is not None:
+            tasks.append(asyncio.create_task(studio.run_forever()))
         await sniper.run_forever()
     finally:
-        if listener is not None:
-            listener.cancel()
+        for task in tasks:
+            task.cancel()
             with suppress(asyncio.CancelledError):
-                await listener
+                await task
+        if studio is not None:
+            await studio.close()
         await health.stop()
         await sniper.close()

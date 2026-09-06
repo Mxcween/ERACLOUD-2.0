@@ -39,3 +39,13 @@ services:
         sync: false
       - key: LOG_LEVEL
         value: INFO
+      # --- Студія: другий бот, який робить фото і описи ---
+      # Токен окремого бота від @BotFather. Порожньо = студія не запускається.
+      - key: STUDIO_BOT_TOKEN
+        sync: false
+      # Ключ Google AI Studio. Без нього студія робить описи, але не фото.
+      - key: GEMINI_API_KEY
+        sync: false
+      # light / dark / studio - фон зйомки за замовчуванням
+      - key: STUDIO_STYLE
+        value: light
