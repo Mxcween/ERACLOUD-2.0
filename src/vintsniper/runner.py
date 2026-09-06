@@ -169,6 +169,15 @@ class Sniper:
             if saved:
                 self.notifier.adopt_chat(saved)
 
+        if not self.notifier.has_target:
+            # База на безкоштовному Render не переживає редеплой разом із
+            # запам'ятованим чатом. Спробуємо дістати його з черги оновлень,
+            # щоб не мовчати, поки власник не напише ще раз.
+            if await self.notifier.discover_chat(self._telegram_offset):
+                await asyncio.to_thread(
+                    self.repo.set_state, "chat_id_top", self.notifier.chat_top
+                )
+
         me = await self.notifier.get_me()
         if me:
             log.info("telegram-бот: @%s", me.get("username"))
@@ -184,8 +193,9 @@ class Sniper:
             )
         else:
             log.warning(
-                "Чат ще не відомий. Напиши боту%s у Telegram команду /start, "
-                "і він запам'ятає цей чат для алертів.",
+                "Чат ще не відомий, АЛЕРТИ НІКУДИ НЕ ЙДУТЬ. Напиши боту%s "
+                "команду /start. Щоб не повторювати це після кожного деплою, "
+                "задай TELEGRAM_CHAT_ID_TOP у змінних оточення.",
                 f" @{me.get('username')}" if me else "",
             )
 
@@ -573,7 +583,10 @@ class Sniper:
         if self.notifier.adopt_chat(command.chat_id):
             await asyncio.to_thread(self.repo.set_state, "chat_id_top", command.chat_id)
             return (
-                "✅ Готово, цей чат тепер отримує алерти.\n\n" + HELP_TEXT
+                "✅ Готово, цей чат тепер отримує алерти.\n\n"
+                + self._pin_chat_hint(command.chat_id)
+                + "\n\n"
+                + HELP_TEXT
             )
 
         if name in ("start", "help"):
@@ -620,6 +633,21 @@ class Sniper:
             return f"🔔 {brand.name} повернувся." if changed else f"{brand.name} і так не заглушений."
 
         return None
+
+    def _pin_chat_hint(self, chat_id: str) -> str:
+        """Як зробити, щоб чат не губився після кожного редеплою.
+
+        На безкоштовному Render немає диска: база лежить у памʼяті контейнера
+        і зникає з кожним новим деплоєм, а разом з нею і запамʼятований чат.
+        Змінна оточення переживає все, тому просимо власника вписати її раз.
+        """
+        if self.settings.telegram.chat_id_top:
+            return ""
+        return (
+            f"📌 Щоб я не забував цей чат після кожного оновлення, встав у "
+            f"Render → Environment:\n<code>TELEGRAM_CHAT_ID_TOP={chat_id}</code>\n"
+            "Один раз - і більше /start не треба."
+        )
 
     async def _set_range(self, args: str) -> str:
         """Ціновий фільтр на алерти в Telegram, який власник крутить на ходу."""

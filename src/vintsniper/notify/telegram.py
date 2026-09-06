@@ -150,6 +150,26 @@ class TelegramNotifier:
         log.info("підхопив чат %s для алертів", chat_id)
         return True
 
+    async def discover_chat(self, offset: int) -> bool:
+        """Підглядає в чергу оновлень і бере звідти чат, не з'їдаючи їх.
+
+        Потрібно після перезапуску: база на безкоштовному Render не переживає
+        редеплой, і запам'ятований чат зникає разом з нею. Якщо власник писав
+        боту останньої доби, лист ще лежить у черзі Telegram і чат звідти
+        видно. Оновлення не підтверджуємо - слухач команд їх ще обробить.
+        """
+        if self.chat_top or self.dry_run:
+            return False
+        result = await self._call(
+            "getUpdates", {"offset": offset, "timeout": 0, "limit": 20}
+        )
+        for update in result or []:
+            message = update.get("message") or update.get("edited_message") or {}
+            chat_id = str((message.get("chat") or {}).get("id", ""))
+            if chat_id and self.adopt_chat(chat_id):
+                return True
+        return False
+
     def _target(self, channel: str) -> tuple[str, int | None]:
         if channel == "top":
             return self.chat_top, self.settings.topic_id_top

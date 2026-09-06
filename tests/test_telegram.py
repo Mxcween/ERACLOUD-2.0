@@ -169,3 +169,54 @@ class TestNoDuplicateOnNetworkError:
             assert len(calls) == 3, "читання можна повторювати скільки завгодно"
         finally:
             await n.close()
+
+
+def live_notifier(**overrides):
+    """Той самий бот, але не в сухому режимі: discover_chat має ходити в мережу."""
+    defaults = dict(bot_token="123:ABC", chat_id_top="", chat_id_all="")
+    defaults.update(overrides)
+    return TelegramNotifier(TelegramSettings(**defaults), dry_run=False)
+
+
+@pytest.mark.asyncio
+async def test_discover_chat_takes_the_id_without_eating_updates(monkeypatch):
+    """Після редеплою база порожня; чат дістаємо з черги, але не підтверджуємо."""
+    n = live_notifier()
+    calls: list[tuple[str, dict]] = []
+
+    async def fake_call(method, payload, **kwargs):
+        calls.append((method, payload))
+        return [{"update_id": 5, "message": {"chat": {"id": -100500}, "text": "/start"}}]
+
+    monkeypatch.setattr(n, "_call", fake_call)
+    assert await n.discover_chat(0) is True
+    assert n.chat_top == "-100500"
+    assert n.has_target
+    # offset не зсуваємо: слухач команд ще має побачити цей самий /start
+    assert calls[0][1]["offset"] == 0
+    await n.close()
+
+
+@pytest.mark.asyncio
+async def test_discover_chat_does_nothing_when_target_known(monkeypatch):
+    n = live_notifier(chat_id_top="42")
+
+    async def boom(*args, **kwargs):  # pragma: no cover - не має викликатись
+        raise AssertionError("зайвий запит до Telegram")
+
+    monkeypatch.setattr(n, "_call", boom)
+    assert await n.discover_chat(0) is False
+    await n.close()
+
+
+@pytest.mark.asyncio
+async def test_discover_chat_survives_an_empty_queue(monkeypatch):
+    n = live_notifier()
+
+    async def empty(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr(n, "_call", empty)
+    assert await n.discover_chat(0) is False
+    assert n.has_target is False
+    await n.close()
