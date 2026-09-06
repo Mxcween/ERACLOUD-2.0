@@ -10,6 +10,7 @@ import asyncio
 import logging
 import time
 from collections import Counter
+from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -40,6 +41,9 @@ SEEN_RETENTION_SECONDS = 7 * 86400
 PRUNE_EVERY_CYCLES = 80
 # Скільки знахідок тримаємо, поки чат невідомий
 MAX_PENDING_ALERTS = 25
+# Скільки секунд Telegram тримає getUpdates відкритим, чекаючи на команду.
+# Слухач живе окремо від циклу, тому відповідь приходить одразу.
+COMMAND_LONG_POLL_SECONDS = 25
 
 
 class Sniper:
@@ -108,6 +112,10 @@ class Sniper:
         # Discord це не чіпає: там канали розкладені по ціні самі.
         self.alert_range = PriceRange.open()
         self._reject_stats: Counter[str] = Counter()
+        # Лічильники для /health: без них не видно, чи бот мовчить тому, що
+        # нічого не знаходить, чи тому, що нема куди слати
+        self._deals_total = 0
+        self._alerts_total = 0
 
     # ------------------------------------------------------------------ старт
 
@@ -231,9 +239,8 @@ class Sniper:
         if self.fx.needs_refresh():
             await self.fx.refresh()
 
-        # Спершу команди: якщо /start прилетів щойно, чат стане відомий ще до
-        # того, як ми почнемо розсилати знахідки цього циклу.
-        await self._handle_commands()
+        # Команди слухає окрема задача (listen_commands), тут лише досилаємо
+        # те, що чекало на чат.
         await self._flush_pending(now_ts)
 
         self.muted = await asyncio.to_thread(self.repo.muted_brand_ids)
@@ -329,6 +336,7 @@ class Sniper:
                     sent += 1
         elif deals:
             log.info("прогрів: %s знахідок не шлю, наповнюю базу цін", len(deals))
+        self._deals_total += len(deals)
 
         # Розмір книги цін навмисне НЕ логуємо як показник роботи: вікно на
         # 120 записів по ключу насичується, і популярні бренди перестають
@@ -422,6 +430,7 @@ class Sniper:
         if ok:
             self._alert_times.append(time.monotonic())
             self._remember_seller(deal.listing.seller_id)
+            self._alerts_total += 1
             await asyncio.to_thread(self.repo.log_alert, deal, now_ts)
             via = []
             if sent_telegram:
@@ -515,7 +524,33 @@ class Sniper:
 
     # ---------------------------------------------------------------- команди
 
-    async def _handle_commands(self) -> None:
+    async def listen_commands(self) -> None:
+        """Окремий слухач команд.
+
+        Раніше команди читались раз на цикл, і відповіді доводилось чекати до
+        хвилини. Тепер з'єднання висить на Telegram і реакція миттєва, а цикл
+        цим взагалі не займається.
+        """
+        if not self.settings.telegram.configured or self.settings.dry_run:
+            log.info("слухач команд не потрібен: Telegram не налаштований")
+            return
+        log.info("слухаю команди в Telegram")
+        while True:
+            started = time.monotonic()
+            try:
+                await self._handle_commands(long_poll=COMMAND_LONG_POLL_SECONDS)
+                await self._flush_pending(utc_now_ts())
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                log.exception("слухач команд спіткнувся, продовжую")
+            # Якщо Telegram відмовляє миттєво (наприклад, битий токен), не
+            # довбимо його в порожньому циклі
+            idle = 2.0 - (time.monotonic() - started)
+            if idle > 0:
+                await asyncio.sleep(idle)
+
+    async def _handle_commands(self, *, long_poll: int = 0) -> None:
         if not self.settings.telegram.configured or self.settings.dry_run:
             return
         try:  # noqa: SIM105 - обробка нижче
@@ -523,6 +558,7 @@ class Sniper:
                 self._telegram_offset,
                 on_command=self._on_command,
                 on_callback=self._on_callback,
+                long_poll=long_poll,
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("не вдалось прочитати команди: %s", exc)
@@ -656,6 +692,19 @@ class Sniper:
             "markets": [m.code for m in self.settings.enabled_markets],
             "brands": len(self.registry),
             "muted_brands": len(self.muted),
+            "deals_found": self._deals_total,
+            "alerts_sent": self._alerts_total,
+            "telegram": {
+                "configured": self.settings.telegram.configured,
+                # Головна причина мовчання: бот не знає, у який чат слати
+                "has_target": self.notifier.has_target,
+                "pending": len(self._pending),
+                "range": self.alert_range.label,
+            },
+            "discord": {
+                "configured": self.discord.configured,
+                "channels": len(self.settings.discord.bounds) + 1,
+            },
             "observations": self.price_book.total_observations,
             "tracked_keys": self.price_book.tracked_keys,
             "fx_live": self.fx.is_live,
@@ -668,9 +717,15 @@ async def main(settings: Settings) -> None:
     sniper = Sniper(settings)
     health = HealthServer(settings.port, sniper.health_status)
     await health.start()
+    listener: asyncio.Task[None] | None = None
     try:
         await sniper.setup()
+        listener = asyncio.create_task(sniper.listen_commands())
         await sniper.run_forever()
     finally:
+        if listener is not None:
+            listener.cancel()
+            with suppress(asyncio.CancelledError):
+                await listener
         await health.stop()
         await sniper.close()

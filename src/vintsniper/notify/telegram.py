@@ -69,13 +69,19 @@ class TelegramNotifier:
 
     # ---------------------------------------------------------------- виклики
 
-    async def _call(self, method: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+    async def _call(
+        self, method: str, payload: dict[str, Any], *, timeout: float | None = None
+    ) -> dict[str, Any] | None:
         if self.dry_run:
             log.info("[dry-run] telegram.%s: %s", method, str(payload)[:220])
             return None
         for attempt in range(1, 4):
             try:
-                resp = await self._client.post(f"/{method}", json=payload)
+                resp = await self._client.post(
+                    f"/{method}",
+                    json=payload,
+                    **({"timeout": timeout} if timeout else {}),
+                )
             except NEVER_SENT_ERRORS as exc:
                 # З'єднання не піднялось, Telegram нічого не бачив. Повтор безпечний.
                 log.warning(
@@ -224,13 +230,25 @@ class TelegramNotifier:
         *,
         on_command: Callable[[Command], Awaitable[str | None]],
         on_callback: Callable[[str, str], Awaitable[str | None]],
+        long_poll: int = 0,
     ) -> int:
-        """Один прохід getUpdates. Повертає новий offset."""
+        """Один прохід getUpdates. Повертає новий offset.
+
+        long_poll - скільки секунд Telegram тримає з'єднання, поки чекає на
+        оновлення. З ним відповідь на команду приходить одразу, а не колись
+        між циклами. Нуль означає «глянув і вийшов».
+        """
         if self.dry_run:
             return offset
         result = await self._call(
             "getUpdates",
-            {"offset": offset, "timeout": 0, "allowed_updates": ["message", "callback_query"]},
+            {
+                "offset": offset,
+                "timeout": long_poll,
+                "allowed_updates": ["message", "callback_query"],
+            },
+            # Довге опитування має пережити власне очікування Telegram
+            timeout=long_poll + 20 if long_poll else None,
         )
         if not result:
             return offset

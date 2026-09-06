@@ -84,6 +84,7 @@ def make_sniper(*, has_target: bool = True, discord: bool = True) -> Sniper:
     sniper._pending = []
     sniper._alert_times = []
     sniper._seller_alerts = {}
+    sniper._alerts_total = 0
     return sniper
 
 
