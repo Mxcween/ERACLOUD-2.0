@@ -12,9 +12,10 @@ from dataclasses import dataclass, field
 # Порядок спроб. Перша модель, яку прийме ключ, і буде робочою: назви в
 # Google міняються частіше, ніж хочеться, тому не прибиваємо одну цвяхами.
 DEFAULT_MODELS = [
+    "gemini-3-pro-image",
     "gemini-3-pro-image-preview",
+    "gemini-3.1-flash-image",
     "gemini-2.5-flash-image",
-    "gemini-2.0-flash-preview-image-generation",
 ]
 
 API_ROOT = "https://generativelanguage.googleapis.com/v1beta"

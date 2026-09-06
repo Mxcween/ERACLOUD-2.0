@@ -21,6 +21,10 @@ class ImageGenError(RuntimeError):
     """Не вийшло згенерувати. Текст призначений користувачу в чат."""
 
 
+class _TryNextModel(RuntimeError):
+    """Ця модель не пішла, але сусідня може."""
+
+
 class ImageGenerator:
     def __init__(self, settings: StudioSettings) -> None:
         self.settings = settings
@@ -70,12 +74,35 @@ class ImageGenerator:
         return None
 
     async def transform(self, image: bytes, mime: str, style: str) -> bytes:
-        model = await self.pick_model()
-        if not model:
+        """Пробує моделі по черзі: квота вичерпується окремо для кожної."""
+        await self.pick_model()
+        order = [self._model] if self._model else []
+        order += [m for m in self.settings.models if m != self._model]
+        if not order:
             raise ImageGenError(
                 "Жодна модель картинок не доступна цьому ключу. "
                 "Перевір GEMINI_API_KEY і /models."
             )
+
+        last: ImageGenError | None = None
+        for model in order:
+            try:
+                out = await self._one_shot(image, mime, style, model)
+            except _TryNextModel as exc:
+                last = ImageGenError(str(exc))
+                continue
+            self._model = model
+            return out
+
+        raise ImageGenError(
+            (str(last) if last else "не вийшло")
+            + "\n\nЯкщо це квота: у Gemini на безкоштовному тарифі генерації "
+            "картинок немає взагалі. Треба увімкнути білінг у AI Studio → "
+            "Get API key → Set up billing. Найдешевша модель виходить "
+            "близько 4 центів за кадр."
+        )
+
+    async def _one_shot(self, image: bytes, mime: str, style: str, model: str) -> bytes:
 
         payload: dict[str, Any] = {
             "contents": [
@@ -97,7 +124,7 @@ class ImageGenerator:
                 json=payload,
             )
         except httpx.HTTPError as exc:
-            raise ImageGenError(f"мережа впала: {exc}") from exc
+            raise _TryNextModel(f"{model}: мережа впала ({exc})") from exc
 
         try:
             data = resp.json()
@@ -105,10 +132,12 @@ class ImageGenerator:
             raise ImageGenError(f"відповідь не JSON ({resp.status_code})") from exc
 
         if resp.status_code >= 400:
-            message = str(data.get("error", {}).get("message", data))[:300]
-            # Модель могла зникнути або перейменуватись - хай наступний виклик шукає заново
-            if resp.status_code == 404:
+            message = str(data.get("error", {}).get("message", data))[:200]
+            # Зникла модель, вичерпана квота або немає доступу - усе це причини
+            # спробувати наступну в переліку, а не здаватись одразу
+            if resp.status_code in (403, 404, 429):
                 self._model = None
+                raise _TryNextModel(f"{model}: {resp.status_code} {message}")
             raise ImageGenError(f"{resp.status_code}: {message}")
 
         out = _extract_image(data)

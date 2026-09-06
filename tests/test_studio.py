@@ -86,3 +86,53 @@ class TestModelResponse:
     def test_model_explanation_is_passed_through(self):
         data = {"candidates": [{"content": {"parts": [{"text": "I cannot edit this"}]}}]}
         assert _refusal_reason(data) == "I cannot edit this"
+
+
+class TestModelFallback:
+    """Квота в Gemini рахується окремо для кожної моделі, тож 429 на одній
+    не означає, що не спрацює сусідня."""
+
+    @pytest.mark.asyncio
+    async def test_moves_past_a_model_that_is_out_of_quota(self, monkeypatch):
+        from studio.imagegen import ImageGenerator, _TryNextModel
+        from studio.settings import StudioSettings
+
+        gen = ImageGenerator(StudioSettings(bot_token="t", api_key="k",
+                                            models=["a", "b", "c"]))
+        tried: list[str] = []
+
+        async def fake_pick():
+            return "a"
+
+        async def fake_one_shot(image, mime, style, model):
+            tried.append(model)
+            if model != "c":
+                raise _TryNextModel(f"{model}: 429 quota")
+            return b"png"
+
+        monkeypatch.setattr(gen, "pick_model", fake_pick)
+        monkeypatch.setattr(gen, "_one_shot", fake_one_shot)
+        assert await gen.transform(b"in", "image/jpeg", "light") == b"png"
+        assert tried == ["a", "b", "c"]
+        assert gen.model == "c"
+        await gen.close()
+
+    @pytest.mark.asyncio
+    async def test_all_out_of_quota_explains_billing(self, monkeypatch):
+        from studio.imagegen import ImageGenError, ImageGenerator, _TryNextModel
+        from studio.settings import StudioSettings
+
+        gen = ImageGenerator(StudioSettings(bot_token="t", api_key="k", models=["a", "b"]))
+
+        async def fake_pick():
+            return "a"
+
+        async def always_fail(image, mime, style, model):
+            raise _TryNextModel(f"{model}: 429 quota")
+
+        monkeypatch.setattr(gen, "pick_model", fake_pick)
+        monkeypatch.setattr(gen, "_one_shot", always_fail)
+        with pytest.raises(ImageGenError) as err:
+            await gen.transform(b"in", "image/jpeg", "light")
+        assert "білінг" in str(err.value)
+        await gen.close()
