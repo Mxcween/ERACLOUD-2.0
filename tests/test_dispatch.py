@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import pytest
 
+from dataclasses import replace
+
 from vintsniper.engine.ranges import PriceRange
 from vintsniper.models import Deal
 from vintsniper.runner import Sniper
@@ -131,3 +133,73 @@ async def test_nothing_sent_when_neither_channel_can_deliver():
     sniper = make_sniper(has_target=False, discord=False)
     assert await sniper._dispatch(make_deal(30), 53, NOW) is False
     assert sniper.repo.alerts == []
+
+
+class TestDeepScanNote:
+    """Знахідка з дешевого хвоста має бути підписана окремо: її бачили всі,
+    хто заходив у ці години, і ніхто не взяв."""
+
+    def test_note_carries_the_age_in_hours(self):
+        from vintsniper.runner import Sniper
+
+        deal = make_deal(30)
+        deal.notes.clear()
+        listing = make_listing(uploaded_ts=NOW - 5 * 3600, seen_ts=NOW)
+        sniper = object.__new__(Sniper)
+        note = Sniper._deep_note(sniper, listing)  # type: ignore[arg-type]
+        assert "5 год" in note
+        assert "висить" in note
+
+    def test_unknown_age_says_so_instead_of_lying(self):
+        from vintsniper.runner import Sniper
+
+        listing = make_listing(uploaded_ts=None, seen_ts=NOW)
+        sniper = object.__new__(Sniper)
+        assert "невідомо" in Sniper._deep_note(sniper, listing)  # type: ignore[arg-type]
+
+    def test_fresh_listing_is_not_called_stale(self):
+        from vintsniper.runner import Sniper
+
+        listing = make_listing(uploaded_ts=NOW - 600, seen_ts=NOW)
+        sniper = object.__new__(Sniper)
+        assert "невідомо" in Sniper._deep_note(sniper, listing)  # type: ignore[arg-type]
+
+
+class TestDeepGate:
+    """Залежалий лот проходить за суворішим порогом, ніж свіжий."""
+
+    def _sniper(self, **scoring):
+        from vintsniper.runner import Sniper
+
+        sniper = object.__new__(Sniper)
+        settings = FakeSettings()
+        settings.scoring = {"deep_min_profit_eur": 25.0, "deep_min_multiple": 3.0, **scoring}
+        sniper.settings = settings
+        return sniper
+
+    @staticmethod
+    def _deal(profit: float, multiple: float) -> Deal:
+        base = make_deal(10)
+        return replace(base, profit_eur=profit, multiple=multiple)
+
+    def test_fat_stale_find_passes(self):
+        from vintsniper.runner import Sniper
+
+        assert Sniper._deep_gate(self._sniper(), self._deal(26.0, 3.2)) is True
+
+    def test_thin_multiple_is_rejected_even_with_profit(self):
+        from vintsniper.runner import Sniper
+
+        assert Sniper._deep_gate(self._sniper(), self._deal(60.0, 2.4)) is False
+
+    def test_small_money_is_rejected_even_with_a_big_multiple(self):
+        """Саме цим забився перший прохід: п'ятиєврові футболки на x6."""
+        from vintsniper.runner import Sniper
+
+        assert Sniper._deep_gate(self._sniper(), self._deal(12.0, 6.3)) is False
+
+    def test_thresholds_come_from_config(self):
+        from vintsniper.runner import Sniper
+
+        loose = self._sniper(deep_min_profit_eur=10.0, deep_min_multiple=2.0)
+        assert Sniper._deep_gate(loose, self._deal(12.0, 6.3)) is True

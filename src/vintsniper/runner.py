@@ -73,6 +73,9 @@ class Sniper:
         self.cycle_seconds = float(polling.get("cycle_seconds", 45))
         self.max_age = int(polling.get("max_item_age_seconds", 3600))
         self.warmup_cycles = int(polling.get("warmup_cycles", 3))
+        # Глибокий прохід по дешевому хвосту: кожні N циклів, по стільки сторінок
+        self.deep_every = int(polling.get("deep_scan_every_cycles", 20))
+        self.deep_pages = max(1, int(polling.get("deep_scan_pages", 2)))
 
         scoring = settings.scoring or {}
         self.price_book = PriceBook(
@@ -273,79 +276,33 @@ class Sniper:
         fresh_count = 0
 
         for market in self.settings.enabled_markets:
-            client = self.clients.get(market.code)
-            if client is None:
-                continue
             for category in self.settings.enabled_categories:
-                try:
-                    listings, server_ts = await client.fetch_catalog(
-                        catalog_id=category.id,
-                        brand_ids=brand_ids,
-                        # Стани звужуємо вже на боці Vinted: у взутті "добре"
-                        # означає затерту підошву, і такі лоти краще не тягнути
-                        # взагалі, ніж фільтрувати їх у себе.
-                        status_ids=self.settings.accepted_status_ids(category.key),
-                        per_page=self.per_page,
-                    )
-                except (VintedError, httpx.HTTPError) as exc:
-                    log.warning("[%s/%s] стрічка не прочиталась: %s", market.code, category.key, exc)
-                    continue
-
-                fetched += len(listings)
-                self._check_feed_overflow(market, category, listings, server_ts)
-
-                new_ids = await asyncio.to_thread(
-                    self.repo.filter_unseen,
-                    market.code,
-                    [item.item_id for item in listings],
-                    server_ts,
+                seen, fresh = await self._scan(
+                    market, category, brand_ids,
+                    observations=observations, deals=deals,
+                    backlog_mode=backlog_mode,
                 )
+                fetched += seen
+                fresh_count += fresh
 
-                for listing in listings:
-                    # Кожен лот враховуємо в статистиці рівно один раз, при першій
-                    # зустрічі. Інакше річ, яку ніхто не купує і яка тижнями висить
-                    # у стрічці, потрапляла б у медіану сотні разів і завищувала
-                    # оцінку продажу. Заразом це тримає базу в розумних розмірах.
-                    if listing.item_id not in new_ids:
-                        continue
-                    fresh_count += 1
-
-                    bucket = self.status_maps[market.code].bucket(listing.status_title)
-                    brand = self.registry.by_title(listing.brand_title)
-
-                    # Ціна продавця йде в статистику ринку: саме її ми отримаємо,
-                    # коли будемо перепродавати самі.
-                    if brand and bucket:
-                        asking_eur = self.fx.to_eur(listing.price, listing.currency)
-                        # Перевіряємо ДО запису: якщо вікно по цьому ключу вже повне,
-                        # у пам'яті ми найстаріше витіснимо, а в базу писати не варто.
-                        # Так база тримається в межах ключі * window_size замість
-                        # того, щоб рости нескінченно.
-                        persist = self.price_book.has_capacity(
-                            brand.brand_id, category.id, bucket, server_ts
-                        )
-                        self.price_book.record(
-                            brand.brand_id, category.id, bucket, asking_eur, server_ts
-                        )
-                        if persist:
-                            observations.append(
-                                (brand.brand_id, category.id, bucket, asking_eur,
-                                 market.code, server_ts)
-                            )
-
-                    # Вік беремо з таймстемпа фото, а він бреше для перевиставлених
-                    # речей: фото старе, а оголошення щойно опубліковане. Тому в
-                    # звичайній роботі покладаємось на дедуплікацію (не бачили =
-                    # нове), а вік застосовуємо тільки щоб не вивалити backlog
-                    # після простою.
-                    if backlog_mode:
-                        age = listing.age_seconds
-                        if age is not None and age > self.max_age:
-                            continue
-
-                    deal = self._assess(listing, market, category, bucket, server_ts)
-                    if deal is not None and brand is not None:
-                        deals.append((deal, brand.brand_id))
+        # Раз на N циклів проходимось по дешевому хвосту: лот, який висить
+        # кілька годин, зі стрічки новинок давно випав, але з сортування за
+        # ціною нікуди не дівається.
+        if self.deep_every and self.cycle_count % self.deep_every == 0:
+            before = len(deals)
+            deep_seen, deep_fresh = await self._deep_scan(brand_ids, observations, deals)
+            fetched += deep_seen
+            fresh_count += deep_fresh
+            # Лишаємо тільки найжирніші: перший прохід інакше вивалює сотню
+            # дрібних лотів, серед яких губиться те, заради чого все затівалось.
+            limit = int((self.settings.scoring or {}).get("deep_max_alerts", 6))
+            found = deals[before:]
+            if len(found) > limit:
+                found.sort(key=lambda d: -d[0].profit_eur)
+                del deals[before:]
+                deals.extend(found[:limit])
+                log.info("глибокий прохід: %s знахідок, лишив %s найжирніших",
+                         len(found), limit)
 
         if observations:
             await asyncio.to_thread(self.repo.add_observations, observations)
@@ -381,6 +338,118 @@ class Sniper:
         if self.cycle_count % PRUNE_EVERY_CYCLES == 0:
             await self._prune(now_ts)
 
+    async def _scan(
+        self,
+        market: Market,
+        category: Category,
+        brand_ids: list[int],
+        *,
+        observations: list,
+        deals: list,
+        backlog_mode: bool,
+        order: str = "newest_first",
+        page: int = 1,
+        deep: bool = False,
+    ) -> tuple[int, int]:
+        """Один запит до однієї пари ринок+категорія. Повертає (взято, нових)."""
+        client = self.clients.get(market.code)
+        if client is None:
+            return 0, 0
+        try:
+            listings, server_ts = await client.fetch_catalog(
+                catalog_id=category.id,
+                brand_ids=brand_ids,
+                # Стани звужуємо вже на боці Vinted: у взутті "добре"
+                # означає затерту підошву, і такі лоти краще не тягнути
+                # взагалі, ніж фільтрувати їх у себе.
+                status_ids=self.settings.accepted_status_ids(category.key),
+                per_page=self.per_page,
+                page=page,
+                order=order,
+            )
+        except (VintedError, httpx.HTTPError) as exc:
+            log.warning("[%s/%s] стрічка не прочиталась: %s", market.code, category.key, exc)
+            return 0, 0
+
+        if not deep:
+            self._check_feed_overflow(market, category, listings, server_ts)
+
+        new_ids = await asyncio.to_thread(
+            self.repo.filter_unseen,
+            market.code,
+            [item.item_id for item in listings],
+            server_ts,
+        )
+
+        fresh = 0
+        for listing in listings:
+            # Кожен лот враховуємо в статистиці рівно один раз, при першій
+            # зустрічі. Інакше річ, яку ніхто не купує і яка тижнями висить
+            # у стрічці, потрапляла б у медіану сотні разів і завищувала
+            # оцінку продажу. Заразом це тримає базу в розумних розмірах.
+            if listing.item_id not in new_ids:
+                continue
+            fresh += 1
+
+            bucket = self.status_maps[market.code].bucket(listing.status_title)
+            brand = self.registry.by_title(listing.brand_title)
+
+            # Ціна продавця йде в статистику ринку: саме її ми отримаємо,
+            # коли будемо перепродавати самі.
+            if brand and bucket:
+                asking_eur = self.fx.to_eur(listing.price, listing.currency)
+                # Перевіряємо ДО запису: якщо вікно по цьому ключу вже повне,
+                # у пам'яті ми найстаріше витіснимо, а в базу писати не варто.
+                persist = self.price_book.has_capacity(
+                    brand.brand_id, category.id, bucket, server_ts
+                )
+                self.price_book.record(
+                    brand.brand_id, category.id, bucket, asking_eur, server_ts
+                )
+                if persist:
+                    observations.append(
+                        (brand.brand_id, category.id, bucket, asking_eur,
+                         market.code, server_ts)
+                    )
+
+            # Вік беремо з таймстемпа фото, а він бреше для перевиставлених
+            # речей: фото старе, а оголошення щойно опубліковане. Тому в
+            # звичайній роботі покладаємось на дедуплікацію (не бачили =
+            # нове), а вік застосовуємо тільки щоб не вивалити backlog
+            # після простою. У глибокому проході вік не фільтруємо взагалі -
+            # ми туди саме за старими лотами й ходимо.
+            if backlog_mode and not deep:
+                age = listing.age_seconds
+                if age is not None and age > self.max_age:
+                    continue
+
+            deal = self._assess(listing, market, category, bucket, server_ts, deep=deep)
+            if deal is not None and brand is not None:
+                deals.append((deal, brand.brand_id))
+
+        return len(listings), fresh
+
+    async def _deep_scan(
+        self, brand_ids: list[int], observations: list, deals: list
+    ) -> tuple[int, int]:
+        """Дешевий хвіст: те, що висить годинами і зі стрічки новинок випало."""
+        seen = fresh = 0
+        for market in self.settings.enabled_markets:
+            for category in self.settings.enabled_categories:
+                for page in range(1, self.deep_pages + 1):
+                    s, f = await self._scan(
+                        market, category, brand_ids,
+                        observations=observations, deals=deals,
+                        backlog_mode=False,
+                        order="price_low_to_high",
+                        page=page,
+                        deep=True,
+                    )
+                    seen += s
+                    fresh += f
+        log.info("глибокий прохід: переглянуто=%s нових=%s", seen, fresh)
+        return seen, fresh
+
     # ------------------------------------------------------------------ оцінка
 
     def _assess(
@@ -390,6 +459,7 @@ class Sniper:
         category: Category,
         bucket: str | None,
         now_ts: int,
+        deep: bool = False,
     ) -> Deal | None:
         total_eur = self.fx.to_eur(listing.total_price, listing.currency)
         result = screen(
@@ -405,13 +475,40 @@ class Sniper:
             return None
         assert isinstance(result, Candidate)
 
-        return evaluate(
+        deal = evaluate(
             result,
             settings=self.settings,
             price_book=self.price_book,
             shipping_eur=market.shipping_eur,
             now_ts=now_ts,
         )
+        if deal is not None and deep:
+            if not self._deep_gate(deal):
+                return None
+            deal.notes.append(self._deep_note(listing))
+        return deal
+
+    def _deep_gate(self, deal: Deal) -> bool:
+        """Окремий, суворіший поріг для залежалих лотів.
+
+        Свіжий лот дешевий тому, що його ще ніхто не бачив - це наша
+        перевага. Залежалий дешевий тому, що його бачили всі й не взяли, а
+        чому саме, ми не знаємо. За цю невідомість беремо надбавку.
+        """
+        scoring = self.settings.scoring or {}
+        min_profit = float(scoring.get("deep_min_profit_eur", 25.0))
+        min_multiple = float(scoring.get("deep_min_multiple", 3.0))
+        return deal.profit_eur >= min_profit and deal.multiple >= min_multiple
+
+    def _deep_note(self, listing: Listing) -> str:
+        """Підпис для знахідки з дешевого хвоста.
+
+        Її бачили всі, хто заходив у ці години, і ніхто не взяв. Причина
+        буває поважна, тому видавати такий лот за свіжак не можна.
+        """
+        age = listing.age_seconds
+        hours = f"{age // 3600} год" if age and age >= 3600 else "невідомо скільки"
+        return f"⏳ висить {hours}, зі стрічки новинок уже випало"
 
     # ------------------------------------------------------------- відправка
 

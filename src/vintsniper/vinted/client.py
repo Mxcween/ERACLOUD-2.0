@@ -218,12 +218,19 @@ class VintedClient:
         price_to: float | None = None,
         per_page: int = 96,
         page: int = 1,
+        order: str = "newest_first",
     ) -> tuple[list[Listing], int]:
-        """Свіжі лоти категорії. Повертає (лоти, серверний час)."""
+        """Лоти категорії. Повертає (лоти, серверний час).
+
+        order="newest_first" - звичайна стрічка, найсвіжіше зверху.
+        order="price_low_to_high" - найдешевше зверху, незалежно від віку.
+        Другий режим потрібен, бо лот, який висить пів дня, зі стрічки
+        новинок уже випав, а з дешевого хвоста нікуди не дівається.
+        """
         params: list[tuple[str, Any]] = [
             ("page", page),
             ("per_page", per_page),
-            ("order", "newest_first"),
+            ("order", order),
             ("catalog_ids[]", catalog_id),
         ]
         for bid in brand_ids or []:
