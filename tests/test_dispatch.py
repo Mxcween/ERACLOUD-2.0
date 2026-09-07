@@ -1,6 +1,8 @@
 """Розсилка: ціновий фільтр на Telegram і незалежність Discord від нього."""
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from dataclasses import replace
@@ -16,6 +18,11 @@ class FakeTelegram:
     def __init__(self, has_target: bool = True) -> None:
         self.has_target = has_target
         self.sent: list[Deal] = []
+        self.texts: list[str] = []
+
+    async def send_text(self, text, *, channel: str = "top"):
+        self.texts.append(text)
+        return True
 
     async def send_deal(self, deal, *, brand_id):
         if not self.has_target:
@@ -203,3 +210,55 @@ class TestDeepGate:
 
         loose = self._sniper(deep_min_profit_eur=10.0, deep_min_multiple=2.0)
         assert Sniper._deep_gate(loose, self._deal(12.0, 6.3)) is True
+
+
+class TestBurstControl:
+    """Після /start бот не має вивалювати все, що назбиралось, одним стосом."""
+
+    def _sniper(self, **alerts):
+        sniper = make_sniper()
+        sniper.settings.alerts = {
+            "max_alerts_per_hour": 60, "quiet_hours": [],
+            "max_alerts_per_minute": 5, "flush_batch": 5,
+            "pending_stale_seconds": 1800, **alerts,
+        }
+        sniper._first_flush = True
+        return sniper
+
+    @pytest.mark.asyncio
+    async def test_minute_cap_queues_instead_of_dropping(self):
+        sniper = self._sniper(max_alerts_per_minute=2)
+        for i in range(5):
+            await sniper._dispatch(make_deal(30 + i), 53, NOW)
+        assert len(sniper.notifier.sent) == 2
+        # Три, що не пройшли, чекають у черзі, а не зникли
+        assert len(sniper._pending) == 3
+
+    @pytest.mark.asyncio
+    async def test_flush_sends_the_fattest_first_and_holds_the_rest(self):
+        sniper = self._sniper(flush_batch=2, max_alerts_per_minute=0)
+        now = time.monotonic()
+        for price in (10, 90, 50, 20):
+            sniper._pending.append((make_deal(price), 53, now))
+        await sniper._flush_pending(NOW)
+        prices = [d.price_eur for d in sniper.notifier.sent]
+        assert prices == [90, 50]
+        assert len(sniper._pending) == 2
+
+    @pytest.mark.asyncio
+    async def test_stale_finds_are_dropped_not_sent(self):
+        """Лот, знайдений годину тому, або куплений, або нікому не потрібен."""
+        sniper = self._sniper(pending_stale_seconds=600)
+        old = time.monotonic() - 3600
+        sniper._pending.append((make_deal(40), 53, old))
+        sniper._pending.append((make_deal(60), 53, time.monotonic()))
+        await sniper._flush_pending(NOW)
+        assert [d.price_eur for d in sniper.notifier.sent] == [60]
+        assert sniper._pending == []
+
+    @pytest.mark.asyncio
+    async def test_nothing_queued_means_no_explanation_message(self):
+        sniper = self._sniper()
+        sniper._pending.append((make_deal(30), 53, time.monotonic()))
+        await sniper._flush_pending(NOW)
+        assert sniper.notifier.texts == []

@@ -120,8 +120,10 @@ class Sniper:
         self._seller_alerts: dict[int, list[float]] = {}
         # Знахідки, які трапились до того, як став відомий чат. Тримаємо їх,
         # а не викидаємо: лот уже позначений переглянутим і вдруге не спливе.
-        self._pending: list[tuple[Deal, int]] = []
+        self._pending: list[tuple[Deal, int, float]] = []
         self._telegram_offset = 0
+        # Щоб пояснення про чергу пролунало один раз, а не щоцикла
+        self._first_flush = True
         # Полиця цін, у якій власник зараз хоче бачити алерти в Telegram.
         # Discord це не чіпає: там канали розкладені по ціні самі.
         self.alert_range = PriceRange.open()
@@ -520,6 +522,13 @@ class Sniper:
         if not self._alert_budget_left():
             log.warning("досягнуто ліміт алертів на годину, притримую решту")
             return False
+        if not self._burst_budget_left():
+            # Не викидаємо: лот стає в чергу і піде наступним циклом. Так
+            # знахідки приходять рівним струмком, а не стосом, у якому
+            # найкраще губиться серед посереднього.
+            if len(self._pending) < MAX_PENDING_ALERTS:
+                self._pending.append((deal, brand_id, time.monotonic()))
+            return False
         if not self._seller_budget_left(deal.listing.seller_id):
             log.info(
                 "продавець %s уже в стрічці цієї години, пропускаю %s",
@@ -540,7 +549,7 @@ class Sniper:
         elif self.settings.dry_run or self.notifier.has_target:
             sent_telegram = await self.notifier.send_deal(deal, brand_id=brand_id)
         elif self.settings.telegram.configured and len(self._pending) < MAX_PENDING_ALERTS:
-            self._pending.append((deal, brand_id))
+            self._pending.append((deal, brand_id, time.monotonic()))
 
         sent_discord = await self.discord.send_deal(deal) if self.discord.configured else False
 
@@ -568,12 +577,43 @@ class Sniper:
         return ok
 
     async def _flush_pending(self, now_ts: int) -> None:
-        """Досилає знахідки, які чекали, поки з'ясується чат."""
+        """Досилає знахідки, які чекали, поки з'ясується чат.
+
+        Не залпом. Поки чат був невідомий, могло назбиратись два десятки
+        лотів, і вивалити їх одним стосом означає поховати найкращий серед
+        решти. Тому: спершу викидаємо протухле (лот, знайдений годину тому,
+        уже або куплений, або нікому не потрібен), далі шлемо найжирніші
+        і не більше кількох за раз, решта чекає наступного циклу.
+        """
         if not self._pending or not self.notifier.has_target:
             return
-        queued, self._pending = self._pending, []
-        log.info("чат зʼявився, досилаю %s відкладених знахідок", len(queued))
-        for deal, brand_id in sorted(queued, key=lambda d: -d[0].profit_eur):
+
+        alerts = self.settings.alerts or {}
+        stale_after = float(alerts.get("pending_stale_seconds", 1800))
+        per_flush = max(1, int(alerts.get("flush_batch", 5)))
+
+        now = time.monotonic()
+        alive = [row for row in self._pending if now - row[2] <= stale_after]
+        dropped = len(self._pending) - len(alive)
+        alive.sort(key=lambda row: -row[0].profit_eur)
+
+        batch, self._pending = alive[:per_flush], alive[per_flush:]
+        if dropped or self._pending:
+            log.info(
+                "черга: шлю %s, чекають %s, викинув протухлих %s",
+                len(batch), len(self._pending), dropped,
+            )
+        if self._first_flush and (dropped or self._pending):
+            self._first_flush = False
+            await self.notifier.send_text(
+                f"Поки чат був невідомий, назбиралось знахідок: "
+                f"<b>{len(batch) + len(self._pending) + dropped}</b>.\n"
+                f"Шлю найжирніші по {per_flush} за раз"
+                + (f", {dropped} уже протухли й пропускаю" if dropped else "")
+                + "."
+            )
+
+        for deal, brand_id, _ in batch:
             await self._dispatch(deal, brand_id, now_ts)
 
     def _seller_budget_left(self, seller_id: int | None) -> bool:
@@ -598,6 +638,14 @@ class Sniper:
                 for k, v in self._seller_alerts.items()
                 if any(t >= cutoff for t in v)
             }
+
+    def _burst_budget_left(self) -> bool:
+        """Скільки алертів пускаємо за хвилину. Захист від залпу."""
+        limit = int((self.settings.alerts or {}).get("max_alerts_per_minute", 5))
+        if limit <= 0:
+            return True
+        cutoff = time.monotonic() - 60
+        return len([t for t in self._alert_times if t >= cutoff]) < limit
 
     def _alert_budget_left(self) -> bool:
         limit = int((self.settings.alerts or {}).get("max_alerts_per_hour", 60))
