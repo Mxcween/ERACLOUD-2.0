@@ -25,7 +25,10 @@ log = logging.getLogger(__name__)
 API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
 # Текстова модель із зором: на безкоштовному тарифі вона доступна, на
 # відміну від генерації картинок
-DEFAULT_MODEL = "gemini-2.5-flash"
+# Квота на безкоштовному тарифі рахується ОКРЕМО для кожної моделі, тому
+# тримаємо дві: коли одна впирається в ліміт, запит іде в другу. Одна модель
+# на цьому тарифі дає приблизно половину відмов.
+DEFAULT_MODELS = ["gemini-2.5-flash", "gemini-3.1-flash-lite"]
 
 PROMPT = (
     "You are checking a second-hand clothing listing photo before a reseller buys it.\n"
@@ -97,7 +100,7 @@ class PhotoJudge:
         self,
         api_key: str,
         *,
-        model: str = DEFAULT_MODEL,
+        models: list[str] | None = None,
         min_real: int = 5,
         min_condition: int = 4,
         min_photo: int = 4,
@@ -105,16 +108,16 @@ class PhotoJudge:
         timeout: float = 25.0,
     ) -> None:
         self.api_key = api_key
-        self.model = model
+        self.models = list(models or DEFAULT_MODELS)
         self.min_real = min_real
         self.min_condition = min_condition
         self.min_photo = min_photo
         # Точних лімітів безкоштовного тарифу Google не публікує, тому пауза
-        # самонавчальна: стартуємо швидко, після 429 розтягуємось, після
-        # успіхів повертаємось. Так само, як з Vinted.
+        # самонавчальна. Плюс у кожної моделі свій "відпочинок" після 429.
         self.min_interval = min_interval
         self._penalty = 1.0
         self._last = 0.0
+        self._cooldown: dict[str, float] = {}
         self._lock = asyncio.Lock()
         self._client = httpx.AsyncClient(timeout=timeout)
         self.checked = 0
@@ -138,11 +141,18 @@ class PhotoJudge:
             await asyncio.sleep(wait)
         self._last = time.monotonic()
 
-    def _penalise(self, retry_after: float = 0.0) -> None:
-        self._penalty = min(self._penalty * 2.0, 8.0)
-        if retry_after:
-            self._last = time.monotonic() + retry_after - self.interval
-        log.warning("зір: квота, пауза між фото тепер %.1fс", self.interval)
+    def _ready_model(self) -> str | None:
+        now = time.monotonic()
+        for model in self.models:
+            if self._cooldown.get(model, 0.0) <= now:
+                return model
+        return None
+
+    def _rest(self, model: str, seconds: float) -> None:
+        """Ця модель упёрлась у квоту - даємо їй перепочити, беремо сусідню."""
+        self._cooldown[model] = time.monotonic() + max(seconds, 8.0)
+        self._penalty = min(self._penalty * 1.5, 8.0)
+        log.info("зір: %s у квоті на %.0fс, пробую іншу модель", model, max(seconds, 8.0))
 
     def _relax(self) -> None:
         if self._penalty > 1.0:
@@ -160,31 +170,53 @@ class PhotoJudge:
     ) -> Verdict:
         if not self.configured or not photo_url:
             return NOT_CONFIGURED
+
         async with self._lock:
-            await self._throttle()
             try:
                 image = await self._client.get(photo_url)
                 image.raise_for_status()
-                data = await self._ask(image.content, brand, title, category, condition, price_eur)
-            except _RateLimited as exc:
-                self.failed += 1
-                self._penalise(exc.retry_after)
-                return CHECK_FAILED
+                blob = image.content
             except Exception as exc:  # noqa: BLE001
                 self.failed += 1
-                log.warning("зір: не вдалось перевірити фото (%s), пускаю без перевірки", exc)
+                log.warning("зір: фото не завантажилось (%s), пускаю без перевірки", exc)
                 return CHECK_FAILED
-            self._relax()
 
-        self.checked += 1
-        verdict = _parse(data, self.min_real, self.min_condition, self.min_photo)
-        if not verdict.ok:
-            self.rejected += 1
-        return verdict
+            # Стільки спроб, скільки моделей, плюс одна після паузи: доставка
+            # йде окремим робітником, тому почекати тут нічого не коштує.
+            for attempt in range(len(self.models) + 1):
+                model = self._ready_model()
+                if model is None:
+                    nap = min(20.0, max(1.0, min(self._cooldown.values()) - time.monotonic()))
+                    if attempt >= len(self.models):
+                        break
+                    await asyncio.sleep(nap)
+                    continue
+                await self._throttle()
+                try:
+                    data = await self._ask(blob, brand, title, category, condition,
+                                           price_eur, model)
+                except _RateLimited as exc:
+                    self._rest(model, exc.retry_after)
+                    continue
+                except Exception as exc:  # noqa: BLE001
+                    self.failed += 1
+                    log.warning("зір: перевірка впала (%s), пускаю без перевірки", exc)
+                    return CHECK_FAILED
+
+                self._relax()
+                self.checked += 1
+                verdict = _parse(data, self.min_real, self.min_condition, self.min_photo)
+                if not verdict.ok:
+                    self.rejected += 1
+                return verdict
+
+        self.failed += 1
+        log.warning("зір: усі моделі в квоті, пускаю лот без перевірки")
+        return CHECK_FAILED
 
     async def _ask(
         self, image: bytes, brand: str, title: str, category: str,
-        condition: str, price_eur: float,
+        condition: str, price_eur: float, model: str,
     ) -> dict[str, Any]:
         payload = {
             "contents": [{"role": "user", "parts": [
@@ -200,7 +232,7 @@ class PhotoJudge:
             },
         }
         resp = await self._client.post(
-            f"{API_ROOT}/models/{self.model}:generateContent",
+            f"{API_ROOT}/models/{model}:generateContent",
             params={"key": self.api_key}, json=payload,
         )
         if resp.status_code == 429:

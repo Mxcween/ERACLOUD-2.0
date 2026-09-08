@@ -114,38 +114,52 @@ class TestCounters:
         await judge.close()
 
 
-class TestAdaptivePacing:
-    """Точних лімітів Google не публікує, тому пауза підбирається на ходу."""
+class TestModelRotation:
+    """Квота на безкоштовному тарифі рахується окремо для кожної моделі."""
 
-    def test_starts_at_the_configured_interval(self):
-        judge = PhotoJudge("key", min_interval=2.0)
-        assert judge.interval == 2.0
+    def test_first_ready_model_is_used(self):
+        judge = PhotoJudge("key", models=["a", "b"])
+        assert judge._ready_model() == "a"
 
-    def test_quota_error_doubles_the_gap(self):
-        judge = PhotoJudge("key", min_interval=2.0)
-        judge._penalise()
-        assert judge.interval == 4.0
-        judge._penalise()
-        assert judge.interval == 8.0
+    def test_model_in_quota_is_skipped_for_a_while(self):
+        judge = PhotoJudge("key", models=["a", "b"])
+        judge._rest("a", 5.0)
+        assert judge._ready_model() == "b"
 
-    def test_penalty_is_capped(self):
-        judge = PhotoJudge("key", min_interval=2.0)
-        for _ in range(10):
-            judge._penalise()
-        assert judge.interval == 16.0
+    def test_all_models_resting_means_none_ready(self):
+        judge = PhotoJudge("key", models=["a", "b"])
+        judge._rest("a", 5.0)
+        judge._rest("b", 5.0)
+        assert judge._ready_model() is None
 
-    def test_success_walks_it_back(self):
-        judge = PhotoJudge("key", min_interval=2.0)
-        judge._penalise()
+    def test_rest_is_never_shorter_than_the_floor(self):
+        """Google інколи каже 'зачекай 0с' — вірити цьому не варто."""
+        import time as _t
+
+        judge = PhotoJudge("key", models=["a"])
+        judge._rest("a", 0.0)
+        assert judge._cooldown["a"] - _t.monotonic() >= 7.0
+
+    def test_quota_stretches_the_gap_and_success_walks_it_back(self):
+        judge = PhotoJudge("key", min_interval=2.0, models=["a"])
+        judge._rest("a", 5.0)
+        assert judge.interval == 3.0
         for _ in range(30):
             judge._relax()
         assert judge.interval == 2.0
 
+    def test_gap_growth_is_capped(self):
+        judge = PhotoJudge("key", min_interval=2.0, models=["a"])
+        for _ in range(20):
+            judge._rest("a", 1.0)
+        assert judge.interval == 16.0
+
     @pytest.mark.asyncio
-    async def test_quota_reply_does_not_lose_the_lot(self, monkeypatch):
+    async def test_quota_on_one_model_retries_on_the_other(self, monkeypatch):
         from vintsniper.engine.vision import _RateLimited
 
-        judge = PhotoJudge("key", min_interval=0.0)
+        judge = PhotoJudge("key", min_interval=0.0, models=["busy", "free"])
+        tried: list[str] = []
 
         class Resp:
             content = b"jpeg"
@@ -154,11 +168,44 @@ class TestAdaptivePacing:
         async def fake_get(*a, **k):
             return Resp()
 
-        async def quota(*a, **k):
-            raise _RateLimited(7.0)
+        async def ask(image, brand, title, category, condition, price, model):
+            tried.append(model)
+            if model == "busy":
+                raise _RateLimited(1.0)
+            return {"real_item": 9, "condition": 9, "photo_ok": 9}
 
         monkeypatch.setattr(judge._client, "get", fake_get)
-        monkeypatch.setattr(judge, "_ask", quota)
+        monkeypatch.setattr(judge, "_ask", ask)
+        v = await judge.judge("u", brand="Nike", title="t", category="c",
+                              condition="Добре", price_eur=9.0)
+        assert v.ok and v.checked
+        assert tried == ["busy", "free"]
+        assert judge.checked == 1 and judge.failed == 0
+        await judge.close()
+
+    @pytest.mark.asyncio
+    async def test_every_model_in_quota_lets_the_lot_through(self, monkeypatch):
+        from vintsniper.engine.vision import _RateLimited
+
+        judge = PhotoJudge("key", min_interval=0.0, models=["a", "b"])
+
+        class Resp:
+            content = b"jpeg"
+            def raise_for_status(self): pass
+
+        async def fake_get(*a, **k):
+            return Resp()
+
+        async def always_busy(*a, **k):
+            raise _RateLimited(0.0)
+
+        monkeypatch.setattr(judge._client, "get", fake_get)
+        monkeypatch.setattr(judge, "_ask", always_busy)
+        monkeypatch.setattr("asyncio.sleep", lambda *_: asyncio_noop())
+
+        async def asyncio_noop():
+            return None
+
         v = await judge.judge("u", brand="Nike", title="t", category="c",
                               condition="Добре", price_eur=9.0)
         assert v.ok and not v.checked

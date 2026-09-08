@@ -116,7 +116,7 @@ class Sniper:
         vision_cfg = (settings.scoring or {}).get("vision") or {}
         self.judge = PhotoJudge(
             os.getenv("GEMINI_API_KEY", "").strip(),
-            model=str(vision_cfg.get("model", "gemini-2.5-flash")),
+            models=list(vision_cfg.get("models") or []) or None,
             min_real=int(vision_cfg.get("min_real", 5)),
             min_condition=int(vision_cfg.get("min_condition", 4)),
             min_photo=int(vision_cfg.get("min_photo", 4)),
