@@ -264,8 +264,13 @@ class Sniper:
                 log.exception("цикл впав, продовжую далі")
                 await asyncio.sleep(30)
 
+            # Коли Vinted починає віддавати 429, коротшати паузу безглуздо:
+            # штраф множить інтервал між запитами, цикл усе одно розтягується,
+            # а ми лише дратуємо його далі. Тому період росте разом зі штрафом
+            # і сам повертається, щойно все заспокоїлось.
+            penalty = max((lim.penalty for lim in self.limiters.values()), default=1.0)
             elapsed = time.monotonic() - started
-            await asyncio.sleep(max(1.0, self.cycle_seconds - elapsed))
+            await asyncio.sleep(max(1.0, self.cycle_seconds * penalty - elapsed))
 
     async def run_cycle(self) -> None:
         self.cycle_count += 1
@@ -360,7 +365,7 @@ class Sniper:
         # збільшувати лічильник, хоч нові лоти й далі надходять.
         log.info(
             "цикл %s: переглянуто=%s нових=%s знахідок=%s у черзі=%s "
-            "у базі цін=%s по %s ключах%s",
+            "у базі цін=%s по %s ключах штраф=%s%s",
             self.cycle_count,
             fetched,
             fresh_count,
@@ -368,6 +373,7 @@ class Sniper:
             self._outbox.qsize(),
             self.price_book.total_observations,
             self.price_book.tracked_keys,
+            {c: round(l.penalty, 1) for c, l in self.limiters.items()},
             " [прогрів]" if warming else "",
         )
         if self._reject_stats and self.cycle_count % 10 == 0:

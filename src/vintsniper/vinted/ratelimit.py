@@ -39,7 +39,7 @@ class RateLimiter:
     def relax(self) -> None:
         """Успішний запит. Повертаємось до норми поступово."""
         if self._penalty > 1.0:
-            self._penalty = max(1.0, self._penalty * 0.9)
+            self._penalty = max(1.0, self._penalty * 0.85)
 
     @property
     def penalty(self) -> float:
