@@ -31,18 +31,30 @@ API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_MODELS = ["gemini-2.5-flash", "gemini-3.1-flash-lite"]
 
 PROMPT = (
-    "You are checking a second-hand clothing listing photo before a reseller buys it.\n"
+    "You are a streetwear and vintage reseller deciding whether to buy this "
+    "second-hand listing to flip it.\n"
     "The listing claims: brand {brand!r}, title {title!r}, category {category!r}, "
     "condition {condition!r}, price {price:.0f} EUR.\n"
     "Answer ONLY compact JSON:\n"
-    '{{"real_item":0-10,"condition":0-10,"photo_ok":0-10,"flags":[],"note":"Ukrainian, max 8 words"}}\n'
-    "real_item: does the garment plausibly match the claimed brand and title, or does it look "
-    "like a counterfeit, a screenshot of another listing, a stock/catalogue image, a photo of a "
-    "screen, or a completely different item.\n"
-    "condition: visible stains, holes, heavy pilling, cracked print, yellowing.\n"
-    "photo_ok: is the garment itself actually visible and identifiable in the frame.\n"
-    "flags: short tags from: fake, screenshot, stock_photo, wrong_item, damaged, blurry, "
-    "not_visible, kids_size, bait."
+    '{{"real_item":0-10,"condition":0-10,"photo_ok":0-10,"desirable":0-10,'
+    '"flags":[],"note":"Ukrainian, max 8 words"}}\n'
+    "real_item: does the garment plausibly match the claimed brand and title, or "
+    "does it look like a counterfeit, a screenshot of another listing, a stock or "
+    "catalogue image, a photo of a screen, or a completely different item.\n"
+    "condition: be strict. Any visible stain, mark, discolouration, bobbling, "
+    "hole, cracked or peeling print, stretched cuffs, yellowing or general "
+    "griminess scores 3 or below.\n"
+    "photo_ok: is the garment itself actually visible and identifiable.\n"
+    "desirable: would this exact piece sell quickly to a young streetwear or "
+    "vintage buyer. Score LOW for: dull or dated colourways, muddy browns, "
+    "washed-out pastels, unflattering cuts, plain gym basics with no design, "
+    "corporate or golf styling, tiny logo-only pieces with nothing else going "
+    "on, and anything that looks like generic supermarket clothing regardless "
+    "of the label. Score HIGH for: bold or clean colourways, recognisable "
+    "silhouettes, technical or archive pieces, big graphics, and cuts people "
+    "currently wear.\n"
+    "flags: short tags from: fake, screenshot, stock_photo, wrong_item, stained, "
+    "damaged, worn_out, blurry, not_visible, dated, boring, bad_colour, kids_size, bait."
 )
 
 
@@ -52,6 +64,7 @@ class Verdict:
     real_item: int = 10
     condition: int = 10
     photo_ok: int = 10
+    desirable: int = 10
     flags: list[str] = field(default_factory=list)
     note: str = ""
     checked: bool = True
@@ -61,7 +74,8 @@ class Verdict:
         if self.ok:
             return ""
         bad = ", ".join(self.flags) if self.flags else "низькі оцінки"
-        return f"{bad} (справжність {self.real_item}, стан {self.condition}, видно {self.photo_ok})"
+        return (f"{bad} (справжність {self.real_item}, стан {self.condition}, "
+                f"видно {self.photo_ok}, попит {self.desirable})")
 
 
 # Ключа немає - перевірки не було й не мало бути. Писати про це в кожному
@@ -102,8 +116,9 @@ class PhotoJudge:
         *,
         models: list[str] | None = None,
         min_real: int = 5,
-        min_condition: int = 4,
+        min_condition: int = 6,
         min_photo: int = 4,
+        min_desirable: int = 5,
         min_interval: float = 2.0,
         timeout: float = 25.0,
     ) -> None:
@@ -112,6 +127,7 @@ class PhotoJudge:
         self.min_real = min_real
         self.min_condition = min_condition
         self.min_photo = min_photo
+        self.min_desirable = min_desirable
         # Точних лімітів безкоштовного тарифу Google не публікує, тому пауза
         # самонавчальна. Плюс у кожної моделі свій "відпочинок" після 429.
         self.min_interval = min_interval
@@ -205,7 +221,8 @@ class PhotoJudge:
 
                 self._relax()
                 self.checked += 1
-                verdict = _parse(data, self.min_real, self.min_condition, self.min_photo)
+                verdict = _parse(data, self.min_real, self.min_condition, self.min_photo,
+                                       self.min_desirable)
                 if not verdict.ok:
                     self.rejected += 1
                 return verdict
@@ -243,18 +260,20 @@ class PhotoJudge:
         return _json.loads(parts[0]["text"])
 
 
-def _parse(data: dict[str, Any], min_real: int = 5, min_condition: int = 4,
-           min_photo: int = 4) -> Verdict:
+def _parse(data: dict[str, Any], min_real: int = 5, min_condition: int = 6,
+           min_photo: int = 4, min_desirable: int = 5) -> Verdict:
     def num(key: str) -> int:
         try:
             return max(0, min(10, int(float(data.get(key, 10)))))
         except (TypeError, ValueError):
             return 10
 
-    real, cond, photo = num("real_item"), num("condition"), num("photo_ok")
+    real, cond = num("real_item"), num("condition")
+    photo, want = num("photo_ok"), num("desirable")
     flags = [str(f) for f in (data.get("flags") or [])][:5]
-    ok = real >= min_real and cond >= min_condition and photo >= min_photo
+    ok = (real >= min_real and cond >= min_condition
+          and photo >= min_photo and want >= min_desirable)
     return Verdict(
-        ok=ok, real_item=real, condition=cond, photo_ok=photo,
+        ok=ok, real_item=real, condition=cond, photo_ok=photo, desirable=want,
         flags=flags, note=str(data.get("note", ""))[:120],
     )

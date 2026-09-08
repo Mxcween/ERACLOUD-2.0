@@ -188,13 +188,12 @@ class TestWornRunningShoes:
 
 
 class TestPerCategoryCondition:
-    def test_shoes_drop_the_good_condition(self, settings):
-        """У взутті "добре" це затерта підошва, тому такий стан не беремо."""
+    def test_good_condition_is_gone_everywhere(self, settings):
+        """Стан "добре" (3) прибраний з усіх категорій: на фото це плями,
+        катишки й витерті манжети, і такі речі не перепродаються."""
+        assert 3 not in settings.accepted_status_ids()
+        assert 3 not in settings.accepted_status_ids("outerwear")
         assert settings.accepted_status_ids("shoes") == [6, 1, 2]
-
-    def test_clothing_keeps_it(self, settings):
-        assert 3 in settings.accepted_status_ids("outerwear")
-        assert 3 in settings.accepted_status_ids()
 
     def test_unknown_category_falls_back_to_default(self, settings):
         assert settings.accepted_status_ids("nope") == settings.accepted_status_ids()
@@ -222,13 +221,23 @@ class TestConditionIsCheckedTwice:
         )
         assert isinstance(run(listing, settings, registry, shoes, 12.0, bucket="very_good"), Candidate)
 
-    def test_clothing_still_accepts_good(self, listing_factory, settings, registry, outerwear):
+    def test_clothing_in_good_is_rejected_too(self, listing_factory, settings, registry, outerwear):
+        """"Добре" на практиці означає плями на колінах і катишки: бренд
+        правильний, а річ не продається."""
         listing = listing_factory(brand_title="Nike", title="Kurtka Nike")
-        assert isinstance(run(listing, settings, registry, outerwear, 20.0, bucket="good"), Candidate)
+        result = run(listing, settings, registry, outerwear, 20.0, bucket="good")
+        assert isinstance(result, Rejected)
+        assert "стан" in result.reason
+
+    def test_very_good_clothing_passes(self, listing_factory, settings, registry, outerwear):
+        listing = listing_factory(brand_title="Nike", title="Kurtka Nike")
+        assert isinstance(
+            run(listing, settings, registry, outerwear, 20.0, bucket="very_good"), Candidate
+        )
 
     def test_accepted_buckets_match_status_ids(self, settings):
         assert settings.accepted_buckets("shoes") == {"new", "very_good"}
-        assert "good" in settings.accepted_buckets("outerwear")
+        assert settings.accepted_buckets("outerwear") == {"new", "very_good"}
 
 
 class TestBudgetSneakerModels:

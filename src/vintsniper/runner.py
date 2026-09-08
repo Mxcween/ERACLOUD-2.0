@@ -118,8 +118,9 @@ class Sniper:
             os.getenv("GEMINI_API_KEY", "").strip(),
             models=list(vision_cfg.get("models") or []) or None,
             min_real=int(vision_cfg.get("min_real", 5)),
-            min_condition=int(vision_cfg.get("min_condition", 4)),
+            min_condition=int(vision_cfg.get("min_condition", 6)),
             min_photo=int(vision_cfg.get("min_photo", 4)),
+            min_desirable=int(vision_cfg.get("min_desirable", 5)),
             min_interval=float(vision_cfg.get("min_interval_seconds", 4.0)),
         )
 
@@ -373,7 +374,7 @@ class Sniper:
             self._outbox.qsize(),
             self.price_book.total_observations,
             self.price_book.tracked_keys,
-            {c: round(l.penalty, 1) for c, l in self.limiters.items()},
+            {c: round(lim.penalty, 1) for c, lim in self.limiters.items()},
             " [прогрів]" if warming else "",
         )
         if self._reject_stats and self.cycle_count % 10 == 0:
