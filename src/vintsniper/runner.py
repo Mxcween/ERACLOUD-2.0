@@ -54,6 +54,9 @@ SEEN_RETENTION_SECONDS = 7 * 86400
 PRUNE_EVERY_CYCLES = 80
 # Скільки знахідок тримаємо, поки чат невідомий
 MAX_PENDING_ALERTS = 25
+# Скільки знахідок може чекати на відправку. Черга потрібна, бо перевірка
+# фото інколи думає 20 секунд, і тримати через це сканування не можна.
+MAX_OUTBOX = 60
 # Скільки секунд Telegram тримає getUpdates відкритим, чекаючи на команду.
 # Слухач живе окремо від циклу, тому відповідь приходить одразу.
 COMMAND_LONG_POLL_SECONDS = 25
@@ -70,7 +73,9 @@ class Sniper:
         self.last_error: str | None = None
 
         polling = settings.polling or {}
-        self.limiter = RateLimiter(float(polling.get("min_request_interval", 0.8)))
+        # По лімітеру на ринок: різні хости, різні лічильники
+        self._request_interval = float(polling.get("min_request_interval", 0.8))
+        self.limiters: dict[str, RateLimiter] = {}
         self.per_page = int(polling.get("items_per_page", 96))
         self.cycle_seconds = float(polling.get("cycle_seconds", 45))
         self.max_age = int(polling.get("max_item_age_seconds", 3600))
@@ -147,6 +152,9 @@ class Sniper:
         self._deals_total = 0
         self._alerts_total = 0
         self._vision_rejects = 0
+        # Пошук і доставка розведені: цикл тільки складає знахідки сюди,
+        # а окремий робітник шле їх у своєму темпі.
+        self._outbox: asyncio.Queue[tuple[Deal, int]] = asyncio.Queue()
 
     # ------------------------------------------------------------------ старт
 
@@ -158,7 +166,9 @@ class Sniper:
         for market in self.settings.enabled_markets:
             client = VintedClient(
                 market,
-                self.limiter,
+                self.limiters.setdefault(
+                    market.code, RateLimiter(self._request_interval)
+                ),
                 timeout=float((self.settings.polling or {}).get("request_timeout", 20.0)),
                 max_retries=int((self.settings.polling or {}).get("max_retries", 3)),
             )
@@ -293,15 +303,23 @@ class Sniper:
         fetched = 0
         fresh_count = 0
 
-        for market in self.settings.enabled_markets:
+        async def sweep(market: Market) -> tuple[int, int]:
+            seen = fresh = 0
             for category in self.settings.enabled_categories:
-                seen, fresh = await self._scan(
+                s, f = await self._scan(
                     market, category, brand_ids,
                     observations=observations, deals=deals,
                     backlog_mode=backlog_mode,
                 )
-                fetched += seen
-                fresh_count += fresh
+                seen += s
+                fresh += f
+            return seen, fresh
+
+        for seen, fresh in await asyncio.gather(
+            *(sweep(m) for m in self.settings.enabled_markets)
+        ):
+            fetched += seen
+            fresh_count += fresh
 
         # Раз на N циклів проходимось по дешевому хвосту: лот, який висить
         # кілька годин, зі стрічки новинок давно випав, але з сортування за
@@ -325,11 +343,14 @@ class Sniper:
         if observations:
             await asyncio.to_thread(self.repo.add_observations, observations)
 
-        sent = 0
+        queued = 0
         if not warming:
             for deal, brand_id in sorted(deals, key=lambda d: -d[0].profit_eur):
-                if await self._dispatch(deal, brand_id, now_ts):
-                    sent += 1
+                if self._outbox.qsize() >= MAX_OUTBOX:
+                    log.warning("черга відправки повна, найдрібніші знахідки не влізли")
+                    break
+                self._outbox.put_nowait((deal, brand_id))
+                queued += 1
         elif deals:
             log.info("прогрів: %s знахідок не шлю, наповнюю базу цін", len(deals))
         self._deals_total += len(deals)
@@ -338,13 +359,13 @@ class Sniper:
         # 120 записів по ключу насичується, і популярні бренди перестають
         # збільшувати лічильник, хоч нові лоти й далі надходять.
         log.info(
-            "цикл %s: переглянуто=%s нових=%s знахідок=%s відправлено=%s "
+            "цикл %s: переглянуто=%s нових=%s знахідок=%s у черзі=%s "
             "у базі цін=%s по %s ключах%s",
             self.cycle_count,
             fetched,
             fresh_count,
             len(deals),
-            sent,
+            self._outbox.qsize(),
             self.price_book.total_observations,
             self.price_book.tracked_keys,
             " [прогрів]" if warming else "",
@@ -451,8 +472,8 @@ class Sniper:
         self, brand_ids: list[int], observations: list, deals: list
     ) -> tuple[int, int]:
         """Дешевий хвіст: те, що висить годинами і зі стрічки новинок випало."""
-        seen = fresh = 0
-        for market in self.settings.enabled_markets:
+        async def sweep(market: Market) -> tuple[int, int]:
+            seen = fresh = 0
             for category in self.settings.enabled_categories:
                 for page in range(1, self.deep_pages + 1):
                     s, f = await self._scan(
@@ -465,6 +486,14 @@ class Sniper:
                     )
                     seen += s
                     fresh += f
+            return seen, fresh
+
+        seen = fresh = 0
+        for s_, f_ in await asyncio.gather(
+            *(sweep(m) for m in self.settings.enabled_markets)
+        ):
+            seen += s_
+            fresh += f_
         log.info("глибокий прохід: переглянуто=%s нових=%s", seen, fresh)
         return seen, fresh
 
@@ -611,6 +640,26 @@ class Sniper:
                 deal.listing.url,
             )
         return ok
+
+    async def deliver_forever(self) -> None:
+        """Окремий робітник доставки.
+
+        Перевірка фото інколи думає двадцять секунд. Поки вона була
+        всередині циклу, кожна така пауза відсувала наступне сканування, і
+        бот пропускав свіжі лоти саме тоді, коли працював найстаранніше.
+        Тепер цикл лише складає знахідки в чергу, а звідси вони йдуть у
+        своєму темпі.
+        """
+        while True:
+            deal, brand_id = await self._outbox.get()
+            try:
+                await self._dispatch(deal, brand_id, utc_now_ts())
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                log.exception("не вдалось відправити знахідку, беру наступну")
+            finally:
+                self._outbox.task_done()
 
     async def _flush_pending(self, now_ts: int) -> None:
         """Досилає знахідки, які чекали, поки з'ясується чат.
@@ -914,6 +963,7 @@ class Sniper:
             "muted_brands": len(self.muted),
             "deals_found": self._deals_total,
             "alerts_sent": self._alerts_total,
+            "outbox": self._outbox.qsize(),
             "vision": {
                 "on": self.judge.configured,
                 "checked": self.judge.checked,
@@ -934,7 +984,9 @@ class Sniper:
             "observations": self.price_book.total_observations,
             "tracked_keys": self.price_book.tracked_keys,
             "fx_live": self.fx.is_live,
-            "rate_penalty": round(self.limiter.penalty, 2),
+            "rate_penalty": {
+                code: round(lim.penalty, 2) for code, lim in self.limiters.items()
+            },
             "last_error": self.last_error,
         }
 
@@ -961,6 +1013,7 @@ async def main(settings: Settings) -> None:
     try:
         await sniper.setup()
         tasks.append(asyncio.create_task(sniper.listen_commands()))
+        tasks.append(asyncio.create_task(sniper.deliver_forever()))
         if studio is not None:
             tasks.append(asyncio.create_task(studio.run_forever()))
         await sniper.run_forever()

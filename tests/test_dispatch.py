@@ -280,3 +280,49 @@ class TestBurstControl:
         sniper._pending.append((make_deal(30), 53, time.monotonic()))
         await sniper._flush_pending(NOW)
         assert sniper.notifier.texts == []
+
+
+class TestDeliveryWorker:
+    """Пошук і доставка розведені: перевірка фото не має гальмувати сканування."""
+
+    @pytest.mark.asyncio
+    async def test_worker_sends_what_the_cycle_queued(self):
+        import asyncio
+
+        sniper = make_sniper()
+        sniper.settings.alerts = {"max_alerts_per_hour": 60, "quiet_hours": [],
+                                  "max_alerts_per_minute": 0}
+        sniper._outbox = asyncio.Queue()
+        for price in (10, 20, 30):
+            sniper._outbox.put_nowait((make_deal(price), 53))
+
+        worker = asyncio.create_task(sniper.deliver_forever())
+        await asyncio.wait_for(sniper._outbox.join(), timeout=2)
+        worker.cancel()
+        assert [d.price_eur for d in sniper.notifier.sent] == [10, 20, 30]
+
+    @pytest.mark.asyncio
+    async def test_one_failing_send_does_not_stop_the_queue(self):
+        import asyncio
+
+        sniper = make_sniper()
+        sniper.settings.alerts = {"max_alerts_per_hour": 60, "quiet_hours": [],
+                                  "max_alerts_per_minute": 0}
+        sniper._outbox = asyncio.Queue()
+        calls = {"n": 0}
+        real = sniper.notifier.send_deal
+
+        async def flaky(deal, *, brand_id):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("телеграм упав")
+            return await real(deal, brand_id=brand_id)
+
+        sniper.notifier.send_deal = flaky
+        sniper._outbox.put_nowait((make_deal(10), 53))
+        sniper._outbox.put_nowait((make_deal(20), 53))
+
+        worker = asyncio.create_task(sniper.deliver_forever())
+        await asyncio.wait_for(sniper._outbox.join(), timeout=2)
+        worker.cancel()
+        assert [d.price_eur for d in sniper.notifier.sent] == [20]

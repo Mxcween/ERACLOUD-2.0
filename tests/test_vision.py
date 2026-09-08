@@ -112,3 +112,79 @@ class TestCounters:
         assert not v.ok
         assert (judge.checked, judge.rejected, judge.failed) == (1, 1, 0)
         await judge.close()
+
+
+class TestAdaptivePacing:
+    """Точних лімітів Google не публікує, тому пауза підбирається на ходу."""
+
+    def test_starts_at_the_configured_interval(self):
+        judge = PhotoJudge("key", min_interval=2.0)
+        assert judge.interval == 2.0
+
+    def test_quota_error_doubles_the_gap(self):
+        judge = PhotoJudge("key", min_interval=2.0)
+        judge._penalise()
+        assert judge.interval == 4.0
+        judge._penalise()
+        assert judge.interval == 8.0
+
+    def test_penalty_is_capped(self):
+        judge = PhotoJudge("key", min_interval=2.0)
+        for _ in range(10):
+            judge._penalise()
+        assert judge.interval == 16.0
+
+    def test_success_walks_it_back(self):
+        judge = PhotoJudge("key", min_interval=2.0)
+        judge._penalise()
+        for _ in range(30):
+            judge._relax()
+        assert judge.interval == 2.0
+
+    @pytest.mark.asyncio
+    async def test_quota_reply_does_not_lose_the_lot(self, monkeypatch):
+        from vintsniper.engine.vision import _RateLimited
+
+        judge = PhotoJudge("key", min_interval=0.0)
+
+        class Resp:
+            content = b"jpeg"
+            def raise_for_status(self): pass
+
+        async def fake_get(*a, **k):
+            return Resp()
+
+        async def quota(*a, **k):
+            raise _RateLimited(7.0)
+
+        monkeypatch.setattr(judge._client, "get", fake_get)
+        monkeypatch.setattr(judge, "_ask", quota)
+        v = await judge.judge("u", brand="Nike", title="t", category="c",
+                              condition="Добре", price_eur=9.0)
+        assert v.ok and not v.checked
+        assert judge.failed == 1
+        await judge.close()
+
+
+class TestRetryAfter:
+    def test_reads_the_header(self):
+        import httpx
+
+        from vintsniper.engine.vision import _retry_after
+
+        assert _retry_after(httpx.Response(429, headers={"retry-after": "12"})) == 12.0
+
+    def test_reads_googles_json_detail(self):
+        import httpx
+
+        from vintsniper.engine.vision import _retry_after
+
+        resp = httpx.Response(429, json={"error": {"details": [{"retryDelay": "31s"}]}})
+        assert _retry_after(resp) == 31.0
+
+    def test_silence_means_use_our_own_backoff(self):
+        import httpx
+
+        from vintsniper.engine.vision import _retry_after
+
+        assert _retry_after(httpx.Response(429, json={"error": {}})) == 0.0

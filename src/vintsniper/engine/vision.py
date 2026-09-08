@@ -68,6 +68,30 @@ NOT_CONFIGURED = Verdict(ok=True, checked=False, note="")
 CHECK_FAILED = Verdict(ok=True, checked=False, note="фото перевірити не вдалось")
 
 
+class _RateLimited(RuntimeError):
+    def __init__(self, retry_after: float = 0.0) -> None:
+        super().__init__("429")
+        self.retry_after = retry_after
+
+
+def _retry_after(resp: httpx.Response) -> float:
+    """Google інколи каже, скільки чекати. Якщо сказав - слухаємо."""
+    header = resp.headers.get("retry-after")
+    if header:
+        try:
+            return float(header)
+        except ValueError:
+            pass
+    try:
+        for detail in resp.json().get("error", {}).get("details", []):
+            delay = detail.get("retryDelay", "")
+            if delay.endswith("s"):
+                return float(delay[:-1])
+    except Exception:  # noqa: BLE001
+        pass
+    return 0.0
+
+
 class PhotoJudge:
     def __init__(
         self,
@@ -77,7 +101,7 @@ class PhotoJudge:
         min_real: int = 5,
         min_condition: int = 4,
         min_photo: int = 4,
-        min_interval: float = 4.0,
+        min_interval: float = 2.0,
         timeout: float = 25.0,
     ) -> None:
         self.api_key = api_key
@@ -85,8 +109,11 @@ class PhotoJudge:
         self.min_real = min_real
         self.min_condition = min_condition
         self.min_photo = min_photo
-        # Безкоштовний тариф рахує запити на хвилину, тому тримаємо паузу
+        # Точних лімітів безкоштовного тарифу Google не публікує, тому пауза
+        # самонавчальна: стартуємо швидко, після 429 розтягуємось, після
+        # успіхів повертаємось. Так само, як з Vinted.
         self.min_interval = min_interval
+        self._penalty = 1.0
         self._last = 0.0
         self._lock = asyncio.Lock()
         self._client = httpx.AsyncClient(timeout=timeout)
@@ -101,11 +128,25 @@ class PhotoJudge:
     async def close(self) -> None:
         await self._client.aclose()
 
+    @property
+    def interval(self) -> float:
+        return self.min_interval * self._penalty
+
     async def _throttle(self) -> None:
-        wait = self.min_interval - (time.monotonic() - self._last)
+        wait = self.interval - (time.monotonic() - self._last)
         if wait > 0:
             await asyncio.sleep(wait)
         self._last = time.monotonic()
+
+    def _penalise(self, retry_after: float = 0.0) -> None:
+        self._penalty = min(self._penalty * 2.0, 8.0)
+        if retry_after:
+            self._last = time.monotonic() + retry_after - self.interval
+        log.warning("зір: квота, пауза між фото тепер %.1fс", self.interval)
+
+    def _relax(self) -> None:
+        if self._penalty > 1.0:
+            self._penalty = max(1.0, self._penalty * 0.85)
 
     async def judge(
         self,
@@ -125,10 +166,15 @@ class PhotoJudge:
                 image = await self._client.get(photo_url)
                 image.raise_for_status()
                 data = await self._ask(image.content, brand, title, category, condition, price_eur)
+            except _RateLimited as exc:
+                self.failed += 1
+                self._penalise(exc.retry_after)
+                return CHECK_FAILED
             except Exception as exc:  # noqa: BLE001
                 self.failed += 1
                 log.warning("зір: не вдалось перевірити фото (%s), пускаю без перевірки", exc)
                 return CHECK_FAILED
+            self._relax()
 
         self.checked += 1
         verdict = _parse(data, self.min_real, self.min_condition, self.min_photo)
@@ -157,6 +203,8 @@ class PhotoJudge:
             f"{API_ROOT}/models/{self.model}:generateContent",
             params={"key": self.api_key}, json=payload,
         )
+        if resp.status_code == 429:
+            raise _RateLimited(_retry_after(resp))
         resp.raise_for_status()
         parts = resp.json()["candidates"][0]["content"]["parts"]
         import json as _json
