@@ -269,7 +269,11 @@ class Sniper:
             # штраф множить інтервал між запитами, цикл усе одно розтягується,
             # а ми лише дратуємо його далі. Тому період росте разом зі штрафом
             # і сам повертається, щойно все заспокоїлось.
-            penalty = max((lim.penalty for lim in self.limiters.values()), default=1.0)
+            # Штраф уже розтягує кожен запит, тому цикл і так довшає. Множити
+            # ще й паузу на всі 8 означає простій у чотири хвилини, тому
+            # стеля тут окрема і низька.
+            penalty = min(3.0, max((lim.penalty for lim in self.limiters.values()),
+                                   default=1.0))
             elapsed = time.monotonic() - started
             await asyncio.sleep(max(1.0, self.cycle_seconds * penalty - elapsed))
 

@@ -71,10 +71,17 @@ categories:
     baseline_eur: {S: 55, A: 30, B: 20}
     min_profit_eur: 7
 
-  # --- спортивне: точні підкатегорії, БЕЗ шортів і аксесуарів ---
+  # --- спортивне: ВИМКНЕНО ---
+  # Заміряно на живому потоці: ці три категорії дають майже весь мотлох.
+  # Розподіл оцінки "попит" по циклу був 0-4 без жодного винятку, з нотатками
+  # на кшталт "Modern gym gear, lacks resale value" - тренувальні штани Nike,
+  # костюми adidas, джогери Puma, футбольні тренувальні кофти. Жодна з них
+  # ніколи не дійшла до чату, тож ми лише палили запити до Vinted і ловили
+  # за це штрафи. Вимикаємо: циклів на третину менше, алертів рівно стільки ж.
   - id: 582
     key: tracksuits
     name: Спортивні костюми
+    enabled: false
     ceiling_eur: 85
     weight_kg: 1.0
     baseline_eur: {S: 110, A: 60, B: 40}
@@ -83,6 +90,7 @@ categories:
   - id: 583
     key: track_pants
     name: Спортивні штани
+    enabled: false
     ceiling_eur: 55
     weight_kg: 0.6
     baseline_eur: {S: 55, A: 30, B: 20}
@@ -91,6 +99,7 @@ categories:
   - id: 581
     key: track_jackets
     name: Олімпійки та вітрівки
+    enabled: false
     ceiling_eur: 60
     weight_kg: 0.7
     baseline_eur: {S: 55, A: 30, B: 20}
