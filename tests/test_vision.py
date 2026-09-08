@@ -1,7 +1,7 @@
 """Зір: як читаються вироки і що робиться, коли перевірка падає."""
 import pytest
 
-from vintsniper.engine.vision import UNCHECKED, PhotoJudge, _parse
+from vintsniper.engine.vision import CHECK_FAILED, NOT_CONFIGURED, PhotoJudge, _parse
 
 
 class TestVerdictParsing:
@@ -49,7 +49,14 @@ class TestFailOpen:
     """Збій зору не має робити бота німим."""
 
     def test_unchecked_verdict_still_passes(self):
-        assert UNCHECKED.ok and not UNCHECKED.checked
+        assert NOT_CONFIGURED.ok and not NOT_CONFIGURED.checked
+        assert CHECK_FAILED.ok and not CHECK_FAILED.checked
+
+    def test_missing_key_says_nothing_but_a_failure_does(self):
+        """Без ключа перевірки не було й не мало бути - мовчимо.
+        А от спроба, що впала, це інформація: лот пішов невивіреним."""
+        assert NOT_CONFIGURED.note == ""
+        assert CHECK_FAILED.note
 
     @pytest.mark.asyncio
     async def test_no_api_key_means_no_check_and_no_loss(self):
@@ -78,7 +85,7 @@ class TestFailOpen:
         monkeypatch.setattr(judge._client, "get", boom)
         v = await judge.judge("https://example.com/x.jpg", brand="Nike", title="t",
                               category="футболки", condition="Добре", price_eur=9.0)
-        assert v.ok and not v.checked
+        assert v.ok and not v.checked and v.note
         assert judge.failed == 1
         await judge.close()
 

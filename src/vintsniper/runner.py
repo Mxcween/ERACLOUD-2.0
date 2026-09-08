@@ -569,6 +569,8 @@ class Sniper:
             return False
         if verdict.note:
             deal.notes.append(("👁 " if verdict.checked else "👁? ") + verdict.note)
+        elif not verdict.checked and self.judge.configured:
+            deal.notes.append("👁? фото не перевірено")
 
         # Telegram і Discord незалежні. Якщо чат Telegram ще невідомий, а токен
         # заданий, лот чекає в черзі (_flush_pending); Discord тим часом працює

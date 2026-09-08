@@ -32,7 +32,7 @@ PROMPT = (
     "The listing claims: brand {brand!r}, title {title!r}, category {category!r}, "
     "condition {condition!r}, price {price:.0f} EUR.\n"
     "Answer ONLY compact JSON:\n"
-    '{{"real_item":0-10,"condition":0-10,"photo_ok":0-10,"flags":[],"note":"max 10 words"}}\n'
+    '{{"real_item":0-10,"condition":0-10,"photo_ok":0-10,"flags":[],"note":"Ukrainian, max 8 words"}}\n'
     "real_item: does the garment plausibly match the claimed brand and title, or does it look "
     "like a counterfeit, a screenshot of another listing, a stock/catalogue image, a photo of a "
     "screen, or a completely different item.\n"
@@ -61,7 +61,11 @@ class Verdict:
         return f"{bad} (справжність {self.real_item}, стан {self.condition}, видно {self.photo_ok})"
 
 
-UNCHECKED = Verdict(ok=True, checked=False, note="фото не перевірено")
+# Ключа немає - перевірки не було й не мало бути. Писати про це в кожному
+# алерті означає засмічувати стрічку тим, чого власник і так не просив.
+NOT_CONFIGURED = Verdict(ok=True, checked=False, note="")
+# А от спроба, яка впала, - це вже інформація: лот пішов невивіреним.
+CHECK_FAILED = Verdict(ok=True, checked=False, note="фото перевірити не вдалось")
 
 
 class PhotoJudge:
@@ -114,7 +118,7 @@ class PhotoJudge:
         price_eur: float,
     ) -> Verdict:
         if not self.configured or not photo_url:
-            return UNCHECKED
+            return NOT_CONFIGURED
         async with self._lock:
             await self._throttle()
             try:
@@ -124,7 +128,7 @@ class PhotoJudge:
             except Exception as exc:  # noqa: BLE001
                 self.failed += 1
                 log.warning("зір: не вдалось перевірити фото (%s), пускаю без перевірки", exc)
-                return UNCHECKED
+                return CHECK_FAILED
 
         self.checked += 1
         verdict = _parse(data, self.min_real, self.min_condition, self.min_photo)
