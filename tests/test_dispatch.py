@@ -44,6 +44,22 @@ class FakeDiscord:
         return 0
 
 
+class FakeJudge:
+    """Зір у тестах завжди пропускає: тут перевіряємо розсилку, не зір."""
+
+    configured = True
+
+    def __init__(self, ok: bool = True) -> None:
+        self.ok = ok
+        self.seen: list[str] = []
+
+    async def judge(self, photo_url, **kwargs):
+        from vintsniper.engine.vision import Verdict
+
+        self.seen.append(photo_url)
+        return Verdict(ok=self.ok, note="" if self.ok else "", flags=[] if self.ok else ["fake"])
+
+
 class FakeRepo:
     def __init__(self) -> None:
         self.alerts: list[Deal] = []
@@ -94,6 +110,8 @@ def make_sniper(*, has_target: bool = True, discord: bool = True) -> Sniper:
     sniper._alert_times = []
     sniper._seller_alerts = {}
     sniper._alerts_total = 0
+    sniper._vision_rejects = 0
+    sniper.judge = FakeJudge()
     return sniper
 
 

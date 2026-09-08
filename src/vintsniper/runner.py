@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from collections import Counter
 from contextlib import suppress
@@ -23,6 +24,7 @@ from .engine.pricing import PriceBook
 from .engine.ranges import PriceRange, suggestions
 from .engine.schedule import in_quiet_hours
 from .engine.scoring import evaluate
+from .engine.vision import PhotoJudge
 from .health import HealthServer
 from .models import Deal, Listing, utc_now_ts
 from .notify.formatting import HELP_TEXT, format_startup, format_stats
@@ -104,6 +106,18 @@ class Sniper:
             send_photo=bool((settings.alerts or {}).get("send_photo", True)),
             dry_run=settings.dry_run or not settings.telegram.configured,
         )
+        # Зір: та сама модель, що й у студії, але тут вона тільки дивиться і
+        # відповідає текстом - на безкоштовному тарифі це доступно.
+        vision_cfg = (settings.scoring or {}).get("vision") or {}
+        self.judge = PhotoJudge(
+            os.getenv("GEMINI_API_KEY", "").strip(),
+            model=str(vision_cfg.get("model", "gemini-2.5-flash")),
+            min_real=int(vision_cfg.get("min_real", 5)),
+            min_condition=int(vision_cfg.get("min_condition", 4)),
+            min_photo=int(vision_cfg.get("min_photo", 4)),
+            min_interval=float(vision_cfg.get("min_interval_seconds", 4.0)),
+        )
+
         self.discord = DiscordNotifier(
             settings.discord.webhooks,
             settings.discord.bounds,
@@ -132,6 +146,7 @@ class Sniper:
         # нічого не знаходить, чи тому, що нема куди слати
         self._deals_total = 0
         self._alerts_total = 0
+        self._vision_rejects = 0
 
     # ------------------------------------------------------------------ старт
 
@@ -216,6 +231,7 @@ class Sniper:
             )
 
     async def close(self) -> None:
+        await self.judge.close()
         for client in self.clients.values():
             await client.close()
         await self.notifier.close()
@@ -535,6 +551,24 @@ class Sniper:
                 deal.listing.seller_id, deal.listing.url,
             )
             return False
+
+        # Фото дивимось в останню чергу: тільки для лотів, які реально
+        # зараз підуть. Так запитів на хвилину виходить рівно стільки,
+        # скільки алертів, і безкоштовна квота не тріщить.
+        verdict = await self.judge.judge(
+            deal.listing.photo_url,
+            brand=deal.listing.brand_title,
+            title=deal.listing.title,
+            category=deal.category_name,
+            condition=deal.listing.status_title,
+            price_eur=deal.price_eur,
+        )
+        if not verdict.ok:
+            self._vision_rejects += 1
+            log.info("зір відсіяв: %s | %s", verdict.reason, deal.listing.url)
+            return False
+        if verdict.note:
+            deal.notes.append(("👁 " if verdict.checked else "👁? ") + verdict.note)
 
         # Telegram і Discord незалежні. Якщо чат Telegram ще невідомий, а токен
         # заданий, лот чекає в черзі (_flush_pending); Discord тим часом працює
@@ -878,6 +912,12 @@ class Sniper:
             "muted_brands": len(self.muted),
             "deals_found": self._deals_total,
             "alerts_sent": self._alerts_total,
+            "vision": {
+                "on": self.judge.configured,
+                "checked": self.judge.checked,
+                "rejected": self.judge.rejected,
+                "failed": self.judge.failed,
+            },
             "telegram": {
                 "configured": self.settings.telegram.configured,
                 # Головна причина мовчання: бот не знає, у який чат слати

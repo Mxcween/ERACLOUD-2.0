@@ -1,0 +1,107 @@
+"""Зір: як читаються вироки і що робиться, коли перевірка падає."""
+import pytest
+
+from vintsniper.engine.vision import UNCHECKED, PhotoJudge, _parse
+
+
+class TestVerdictParsing:
+    def test_clean_listing_passes(self):
+        v = _parse({"real_item": 9, "condition": 8, "photo_ok": 9, "flags": [], "note": "ok"})
+        assert v.ok and v.checked and v.note == "ok"
+
+    def test_counterfeit_is_rejected(self):
+        v = _parse({"real_item": 2, "condition": 8, "photo_ok": 9, "flags": ["fake"]})
+        assert not v.ok
+        assert "fake" in v.reason
+
+    def test_screenshot_of_another_listing_is_rejected(self):
+        v = _parse({"real_item": 3, "condition": 7, "photo_ok": 8, "flags": ["screenshot"]})
+        assert not v.ok
+
+    def test_damaged_item_is_rejected(self):
+        assert not _parse({"real_item": 9, "condition": 1, "photo_ok": 9}).ok
+
+    def test_item_not_visible_is_rejected(self):
+        assert not _parse({"real_item": 8, "condition": 8, "photo_ok": 1}).ok
+
+    def test_missing_fields_default_to_trusting(self):
+        """Модель мовчить про поле - не привід викидати лот."""
+        assert _parse({"note": "нічого не сказала"}).ok
+
+    def test_garbage_values_do_not_crash(self):
+        v = _parse({"real_item": "дев'ять", "condition": None, "photo_ok": 99})
+        assert v.ok and v.photo_ok == 10
+
+    def test_scores_are_clamped(self):
+        v = _parse({"real_item": -5, "condition": 50, "photo_ok": 7})
+        assert v.real_item == 0 and v.condition == 10
+
+    def test_thresholds_are_configurable(self):
+        data = {"real_item": 6, "condition": 6, "photo_ok": 6}
+        assert _parse(data).ok
+        assert not _parse(data, min_real=8).ok
+
+    def test_reason_is_empty_when_it_passed(self):
+        assert _parse({"real_item": 9, "condition": 9, "photo_ok": 9}).reason == ""
+
+
+class TestFailOpen:
+    """Збій зору не має робити бота німим."""
+
+    def test_unchecked_verdict_still_passes(self):
+        assert UNCHECKED.ok and not UNCHECKED.checked
+
+    @pytest.mark.asyncio
+    async def test_no_api_key_means_no_check_and_no_loss(self):
+        judge = PhotoJudge("")
+        assert judge.configured is False
+        v = await judge.judge("https://example.com/x.jpg", brand="Nike", title="t",
+                              category="футболки", condition="Дуже добре", price_eur=12.0)
+        assert v.ok and not v.checked
+        await judge.close()
+
+    @pytest.mark.asyncio
+    async def test_listing_without_a_photo_is_not_dropped(self):
+        judge = PhotoJudge("key")
+        v = await judge.judge("", brand="Nike", title="t", category="футболки",
+                              condition="Добре", price_eur=9.0)
+        assert v.ok and not v.checked
+        await judge.close()
+
+    @pytest.mark.asyncio
+    async def test_network_failure_lets_the_lot_through(self, monkeypatch):
+        judge = PhotoJudge("key", min_interval=0.0)
+
+        async def boom(*a, **k):
+            raise RuntimeError("мережа впала")
+
+        monkeypatch.setattr(judge._client, "get", boom)
+        v = await judge.judge("https://example.com/x.jpg", brand="Nike", title="t",
+                              category="футболки", condition="Добре", price_eur=9.0)
+        assert v.ok and not v.checked
+        assert judge.failed == 1
+        await judge.close()
+
+
+class TestCounters:
+    @pytest.mark.asyncio
+    async def test_rejections_are_counted(self, monkeypatch):
+        judge = PhotoJudge("key", min_interval=0.0)
+
+        class Resp:
+            content = b"jpeg"
+            def raise_for_status(self): pass
+
+        async def fake_get(*a, **k):
+            return Resp()
+
+        async def fake_ask(*a, **k):
+            return {"real_item": 1, "condition": 9, "photo_ok": 9, "flags": ["fake"]}
+
+        monkeypatch.setattr(judge._client, "get", fake_get)
+        monkeypatch.setattr(judge, "_ask", fake_ask)
+        v = await judge.judge("u", brand="Nike", title="t", category="c",
+                              condition="Добре", price_eur=9.0)
+        assert not v.ok
+        assert (judge.checked, judge.rejected, judge.failed) == (1, 1, 0)
+        await judge.close()
