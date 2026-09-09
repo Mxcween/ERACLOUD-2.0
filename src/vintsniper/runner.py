@@ -168,6 +168,12 @@ class Sniper:
         # Discord це не чіпає: там канали розкладені по ціні самі.
         self.alert_range = PriceRange.open()
         self._reject_stats: Counter[str] = Counter()
+        # Чому знахідка не дійшла до чату. Питання "чому так мало алертів"
+        # виникало стільки разів, що вгадувати відповідь по інших числах
+        # виявилось дорожче, ніж порахувати її один раз тут.
+        self._drops: Counter[str] = Counter()
+        # Скільки знахідок цикл не поставив у чергу через прогрів або стелю
+        self._not_queued: Counter[str] = Counter()
         # Лічильники для /health: без них не видно, чи бот мовчить тому, що
         # нічого не знаходить, чи тому, що нема куди слати
         self._deals_total = 0
@@ -392,17 +398,20 @@ class Sniper:
             # решти - а весь сенс у тому, щоб його було видно.
             for deal, brand_id in sorted(deals, key=lambda d: -d[0].profit_eur):
                 if queued >= self.fat_max_per_cycle:
+                    self._not_queued["ліміт за цикл"] += len(deals) - queued
                     log.info(
                         "цього циклу вже %s знахідок, решту (%s) лишаю ринку",
                         queued, len(deals) - queued,
                     )
                     break
                 if self._outbox.qsize() >= MAX_OUTBOX:
+                    self._not_queued["черга повна"] += len(deals) - queued
                     log.warning("черга відправки повна, найдрібніші знахідки не влізли")
                     break
                 self._outbox.put_nowait((deal, brand_id))
                 queued += 1
         elif deals:
+            self._not_queued["прогрів"] += len(deals)
             log.info("прогрів: %s знахідок не шлю, наповнюю базу цін", len(deals))
         self._deals_total += len(deals)
 
@@ -652,20 +661,25 @@ class Sniper:
 
     async def _dispatch(self, deal: Deal, brand_id: int, now_ts: int) -> bool:
         if self.paused:
+            self._drops["пауза"] += 1
             return False
         if self._in_quiet_hours():
+            self._drops["тихі години"] += 1
             return False
         if not self._alert_budget_left():
+            self._drops["ліміт на годину"] += 1
             log.warning("досягнуто ліміт алертів на годину, притримую решту")
             return False
         if not self._burst_budget_left():
             # Не викидаємо: лот стає в чергу і піде наступним циклом. Так
             # знахідки приходять рівним струмком, а не стосом, у якому
             # найкраще губиться серед посереднього.
+            self._drops["ліміт на хвилину"] += 1
             if len(self._pending) < MAX_PENDING_ALERTS:
                 self._pending.append((deal, brand_id, time.monotonic()))
             return False
         if not self._seller_budget_left(deal.listing.seller_id):
+            self._drops["той самий продавець"] += 1
             log.info(
                 "продавець %s уже в стрічці цієї години, пропускаю %s",
                 deal.listing.seller_id, deal.listing.url,
@@ -678,6 +692,7 @@ class Sniper:
         # справді жирний лот не губився серед десятка прохідних.
         fat_ok, note = self.fat.verdict(deal.profit_eur)
         if not fat_ok:
+            self._drops["дрібне"] += 1
             log.info("%s | %s", note, deal.listing.url)
             return False
         if note:
@@ -1074,6 +1089,10 @@ class Sniper:
             "outbox": self._outbox.qsize(),
             # Планка жиру: скільки зараз треба заробити, щоб лот дійшов
             "fat": self.fat.stats(),
+            # Куди поділись знахідки, які не стали алертами. Дивитись сюди,
+            # коли алертів менше, ніж знахідок: тут написано, хто їх з'їв.
+            "drops": dict(self._drops),
+            "not_queued": dict(self._not_queued),
             # Слухач команд живе окремою задачею, і колись він завис так, що
             # бот справно слав алерти й мовчав на будь-яку команду. Тут видно
             # одразу: since_ok росте - слухач стоїть.

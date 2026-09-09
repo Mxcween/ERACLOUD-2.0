@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import time
 
+from collections import Counter
+
 import pytest
 
 from dataclasses import replace
@@ -97,6 +99,8 @@ def make_sniper(*, has_target: bool = True, discord: bool = True) -> Sniper:
     sniper._alerts_total = 0
     # Планка жиру в тестах розсилки пропускає все: тут перевіряється
     # маршрутизація алертів, а не відбір знахідок (для нього є test_fat).
+    sniper._drops = Counter()
+    sniper._not_queued = Counter()
     sniper.fat = FatGate(floor_eur=0.0, warmup_samples=10**9)
     sniper.fat_max_per_cycle = 100
     return sniper
