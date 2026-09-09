@@ -203,6 +203,17 @@ class VintedClient:
             if resp.status_code in (403, 429):
                 self.stats[str(resp.status_code)] += 1
                 self.limiter.penalise()
+                # 429 і 403 - різні речі, і лікуються по-різному.
+                #
+                # 403 означає "ти підозрілий": тоді відбиток справді треба
+                # міняти. 429 означає лише "зашвидко" - сесія при цьому
+                # цілком робоча. Ми ж на кожен 429 піднімали її наново, і це
+                # било по нас двічі: зайвий запит на головну і свіжі куки
+                # замість тих, що вже мали якусь довіру. Заміряно на живому
+                # боті: коли інтервал підняли з 3.5 до 5 секунд, відмов стало
+                # не менше, а більше (34% -> 63%), бо запитів на цикл менше
+                # не стало, а сесія так само скидалась після кожного.
+                blocked = resp.status_code == 403
                 # Довга пауза саме тут була помилкою. Обмежувач уже подвоїв
                 # інтервал для всього ринку, а ця пауза додавалась зверху й
                 # тримала весь обхід: 10+20+40 секунд на КОЖНУ категорію,
@@ -219,7 +230,8 @@ class VintedClient:
                 await asyncio.sleep(delay)
                 if attempt >= min(2, self.max_retries):
                     raise VintedBlocked(f"{self.market.code}: HTTP {resp.status_code}")
-                await self.ensure_session(force=True)
+                if blocked:
+                    await self.ensure_session(force=True)
                 continue
 
             if 500 <= resp.status_code < 600:

@@ -117,3 +117,48 @@ class TestIpWideCeiling:
         started = time.monotonic()
         await asyncio.gather(*(m.acquire() for m in (pl, de, pl, de)))
         assert time.monotonic() - started < 0.05
+
+
+class TestRefusalKind:
+    """429 і 403 лікуються по-різному.
+
+    429 це "зашвидко" - сесія робоча, міняти відбиток безглуздо і шкідливо:
+    зайвий запит на головну плюс свіжі куки замість тих, що вже мали довіру.
+    403 це "ти підозрілий" - ось там відбиток і треба міняти.
+    """
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_keeps_the_session(self, no_sleep):
+        homepage_hits = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal homepage_hits
+            if request.url.path == "/":
+                homepage_hits += 1
+                return httpx.Response(200, text="<html></html>")
+            return httpx.Response(429, text="slow down")
+
+        client = build(handler)
+        with pytest.raises(VintedBlocked):
+            await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+        await client.close()
+
+        assert homepage_hits == 1, "429 не має піднімати сесію заново"
+
+    @pytest.mark.asyncio
+    async def test_forbidden_rotates_the_fingerprint(self, no_sleep):
+        homepage_hits = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal homepage_hits
+            if request.url.path == "/":
+                homepage_hits += 1
+                return httpx.Response(200, text="<html></html>")
+            return httpx.Response(403, text="no")
+
+        client = build(handler)
+        with pytest.raises(VintedBlocked):
+            await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+        await client.close()
+
+        assert homepage_hits > 1, "на 403 відбиток мав змінитись"
