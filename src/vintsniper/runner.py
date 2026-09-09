@@ -418,6 +418,10 @@ class Sniper:
                 order=order,
             )
         except (VintedError, httpx.HTTPError) as exc:
+            # Не тільки в лог: якщо Vinted не віддає стрічку, бот НЕ здоровий,
+            # хай навіть він бадьоро крутить цикли. Раніше /health показував
+            # "ok" і порожній last_error, поки жодна категорія не читалась.
+            self.last_error = f"[{market.code}/{category.key}] {exc}"
             log.warning("[%s/%s] стрічка не прочиталась: %s", market.code, category.key, exc)
             return 0, 0
 
@@ -997,6 +1001,12 @@ class Sniper:
             "fx_live": self.fx.is_live,
             "rate_penalty": {
                 code: round(lim.penalty, 2) for code, lim in self.limiters.items()
+            },
+            # Чим закінчуються запити до Vinted, по ринках. Дивитись сюди
+            # ПЕРШИМ, коли алертів нема: нуль в "ok" означає, що нас не
+            # пускають, і жодні пороги фільтра тут ні до чого.
+            "fetch": {
+                code: dict(client.stats) for code, client in self.clients.items()
             },
             "last_error": self.last_error,
         }

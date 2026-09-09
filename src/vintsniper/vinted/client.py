@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from collections import Counter
 from typing import Any
 
 import httpx
@@ -60,6 +61,12 @@ class VintedClient:
         )
         self._bootstrapped = False
         self._bootstrap_lock = asyncio.Lock()
+        # Чим саме закінчуються запити. Без цього /health показував
+        # "status: ok, last_error: null" на боті, який чотири години не міг
+        # прочитати жодної сторінки: мовчазний провал виглядав як тиша на
+        # ринку. Тепер видно, відмовляє Vinted чи справді нема лотів.
+        self.stats: Counter[str] = Counter()
+        self.last_status: int | None = None
 
     def _base_headers(self) -> dict[str, str]:
         return {
@@ -121,12 +128,17 @@ class VintedClient:
                     return
 
                 if resp.status_code in (403, 429):
-                    # Нас пригальмували ще на вході. Тиснути далі тим самим
-                    # відбитком безглуздо: чекаємо довше і міняємо User-Agent.
+                    # Нас пригальмували ще на вході. Корисна дія тут - змінити
+                    # відбиток, а не чекати: довжина паузи Vinted не цікавить,
+                    # а обмежувач і так уже розтягнув інтервал для всього
+                    # ринку. Пауза в 20+40+80 секунд коштувала нам циклу
+                    # цілком, і то на КОЖНУ категорію, бо _get_json піднімає
+                    # сесію заново після кожного 403.
+                    self.stats["bootstrap_" + str(resp.status_code)] += 1
                     self.limiter.penalise()
-                    delay = min(120.0, (2 ** attempt) * 10)
+                    delay = min(6.0, 2.0 * attempt)
                     log.warning(
-                        "[%s] головна віддала %s, чекаю %.0fс і міняю відбиток",
+                        "[%s] головна віддала %s, міняю відбиток (пауза %.0fс)",
                         self.market.code, resp.status_code, delay,
                     )
                     await asyncio.sleep(delay)
@@ -137,7 +149,7 @@ class VintedClient:
                     "[%s] головна віддала %s (%s/%s)",
                     self.market.code, resp.status_code, attempt, self.max_retries,
                 )
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(min(6.0, 2.0 * attempt))
 
             raise VintedBlocked(f"{self.market.code}: не вдалось підняти сесію")
 
@@ -166,12 +178,15 @@ class VintedClient:
                 )
             except httpx.HTTPError as exc:
                 last_error = exc
+                self.stats["network"] += 1
                 log.warning("[%s] мережа впала (%s/%s): %s", self.market.code, attempt, self.max_retries, exc)
                 await asyncio.sleep(2 ** attempt)
                 continue
 
+            self.last_status = resp.status_code
             if resp.status_code == 200:
                 self.limiter.relax()
+                self.stats["ok"] += 1
                 try:
                     return resp.json()
                 except ValueError as exc:
@@ -186,19 +201,29 @@ class VintedClient:
                 continue
 
             if resp.status_code in (403, 429):
+                self.stats[str(resp.status_code)] += 1
                 self.limiter.penalise()
-                delay = min(60.0, (2 ** attempt) * 5)
+                # Довга пауза саме тут була помилкою. Обмежувач уже подвоїв
+                # інтервал для всього ринку, а ця пауза додавалась зверху й
+                # тримала весь обхід: 10+20+40 секунд на КОЖНУ категорію,
+                # яку Vinted не віддав. Заміряно на живому боті - цикл
+                # розтягнувся з 30 секунд до 317, тобто бот майже не дивився
+                # на стрічку саме тоді, коли й так ледве проходив.
+                # Одна коротка пауза, одна спроба з новою сесією, і йдемо
+                # далі: ця категорія повернеться наступним циклом.
+                delay = min(8.0, 2.0 * attempt)
                 log.warning(
                     "[%s] Vinted віддав %s, пауза %.0fс (штраф x%.1f)",
                     self.market.code, resp.status_code, delay, self.limiter.penalty,
                 )
                 await asyncio.sleep(delay)
-                if attempt == self.max_retries:
+                if attempt >= min(2, self.max_retries):
                     raise VintedBlocked(f"{self.market.code}: HTTP {resp.status_code}")
                 await self.ensure_session(force=True)
                 continue
 
             if 500 <= resp.status_code < 600:
+                self.stats["5xx"] += 1
                 last_error = VintedError(f"HTTP {resp.status_code}")
                 await asyncio.sleep(2 ** attempt)
                 continue
