@@ -202,3 +202,29 @@ class TestCategoryRotation:
         s, _ = self._sniper(5, 3)
         assert [c.key for c in s._category_slice()] == ["c0", "c1", "c2"]
         assert [c.key for c in s._category_slice()] == ["c3", "c4", "c0"]
+
+
+class TestPenaltyCeiling:
+    """Штраф не має заганяти бота в кому.
+
+    Заміряно: ширші паузи відмов не зменшують, бо ліміт Vinted стоїть на
+    кількості запитів, а не на їх частоті. При половині відмов штраф уже не
+    спадав ніколи, бо подвоєння після кожної перебивало ті 15%, що знімає
+    успіх. Виходило, що ми платимо паузами за те, чого не купуємо.
+    """
+
+    def test_penalty_stops_well_short_of_a_coma(self):
+        lim = RateLimiter(min_interval=2.0, jitter=0.0)
+        for _ in range(20):
+            lim.penalise()
+        assert lim.penalty <= RateLimiter.CEILING
+        assert lim.min_interval * lim.penalty <= 5.0, "інтервал розрісся до коми"
+
+    def test_a_success_still_walks_it_back(self):
+        lim = RateLimiter(min_interval=2.0, jitter=0.0)
+        lim.penalise()
+        peak = lim.penalty
+        for _ in range(10):
+            lim.relax()
+        assert lim.penalty < peak
+        assert lim.penalty >= 1.0
