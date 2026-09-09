@@ -82,3 +82,38 @@ class TestBlocked:
         assert listings == []
         assert client.stats["ok"] == 1
         assert client.stats["403"] == 0
+
+
+class TestIpWideCeiling:
+    """Vinted рахує запити по IP, а не по хосту.
+
+    Два ринки з окремими лічильниками кожен вважав, що дотримується
+    інтервалу, а разом видавали вдвічі більшу частоту, ніж написано в
+    конфізі. Живий бот ловив 429 ще на піднятті сесії.
+    """
+
+    @pytest.mark.asyncio
+    async def test_two_markets_share_one_ceiling(self):
+        import time
+
+        parent = RateLimiter(min_interval=0.05, jitter=0.0)
+        pl = RateLimiter(min_interval=0.0, jitter=0.0, parent=parent)
+        de = RateLimiter(min_interval=0.0, jitter=0.0, parent=parent)
+
+        started = time.monotonic()
+        await asyncio.gather(*(m.acquire() for m in (pl, de, pl, de)))
+        elapsed = time.monotonic() - started
+
+        # Чотири запити при стелі 0.05с не можуть коштувати менше трьох пауз
+        assert elapsed >= 0.15 - 0.02, f"стеля не спрацювала: {elapsed:.3f}с"
+
+    @pytest.mark.asyncio
+    async def test_without_a_parent_nothing_holds_them_back(self):
+        import time
+
+        pl = RateLimiter(min_interval=0.0, jitter=0.0)
+        de = RateLimiter(min_interval=0.0, jitter=0.0)
+
+        started = time.monotonic()
+        await asyncio.gather(*(m.acquire() for m in (pl, de, pl, de)))
+        assert time.monotonic() - started < 0.05

@@ -13,15 +13,30 @@ import time
 
 
 class RateLimiter:
-    def __init__(self, min_interval: float, jitter: float = 0.35) -> None:
+    def __init__(
+        self,
+        min_interval: float,
+        jitter: float = 0.35,
+        parent: "RateLimiter | None" = None,
+    ) -> None:
         self.min_interval = min_interval
         self.jitter = jitter
+        # Vinted рахує запити по IP, а не по хосту. Два ринки з окремими
+        # лічильниками думали, що йдуть по одному запиту на дві секунди
+        # кожен, а з боку Vinted це був один запит на секунду - і 429
+        # прилітав з першої ж хвилини, ще на піднятті сесії. Спільний
+        # батьківський обмежувач тримає стелю на весь процес; штраф
+        # лишається персональним, бо гальмувати треба той ринок, який
+        # поскаржився.
+        self._parent = parent
         self._lock = asyncio.Lock()
         self._next_allowed = 0.0
         # Множник, який росте після 429 і повільно спадає після успіхів
         self._penalty = 1.0
 
     async def acquire(self) -> None:
+        if self._parent is not None:
+            await self._parent.acquire()
         async with self._lock:
             now = time.monotonic()
             wait = self._next_allowed - now

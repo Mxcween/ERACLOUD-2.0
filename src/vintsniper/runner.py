@@ -75,6 +75,13 @@ class Sniper:
         polling = settings.polling or {}
         # По лімітеру на ринок: різні хости, різні лічильники
         self._request_interval = float(polling.get("min_request_interval", 0.8))
+        # Стеля на весь процес, бо Vinted рахує по IP, а не по хосту.
+        # Без неї два ринки разом видавали вдвічі більшу частоту, ніж
+        # показував конфіг, і 429 починався ще на піднятті сесії.
+        self._ip_limiter = RateLimiter(
+            float(polling.get("ip_request_interval", self._request_interval)),
+            jitter=0.25,
+        )
         self.limiters: dict[str, RateLimiter] = {}
         self.per_page = int(polling.get("items_per_page", 96))
         self.cycle_seconds = float(polling.get("cycle_seconds", 45))
@@ -168,7 +175,8 @@ class Sniper:
             client = VintedClient(
                 market,
                 self.limiters.setdefault(
-                    market.code, RateLimiter(self._request_interval)
+                    market.code,
+                    RateLimiter(self._request_interval, parent=self._ip_limiter),
                 ),
                 timeout=float((self.settings.polling or {}).get("request_timeout", 20.0)),
                 max_retries=int((self.settings.polling or {}).get("max_retries", 3)),
