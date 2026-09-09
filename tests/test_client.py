@@ -162,3 +162,43 @@ class TestRefusalKind:
         await client.close()
 
         assert homepage_hits > 1, "на 403 відбиток мав змінитись"
+
+
+class TestCategoryRotation:
+    """Квота Vinted менша за наш обхід, тому категорії йдуть по колу.
+
+    Головне тут - нічого не загубити: за повний оберт мають бути прочитані
+    всі категорії рівно по разу, інакше якась стрічка тихо випаде назавжди.
+    """
+
+    def _sniper(self, count: int, per_cycle: int):
+        from types import SimpleNamespace
+
+        from vintsniper.runner import Sniper
+
+        cats = [SimpleNamespace(key=f"c{i}", id=i) for i in range(count)]
+        s = object.__new__(Sniper)
+        s.settings = SimpleNamespace(enabled_categories=cats)
+        s._cats_per_cycle = per_cycle
+        s._cat_cursor = 0
+        return s, cats
+
+    def test_a_full_turn_covers_every_category_once(self):
+        s, cats = self._sniper(11, 4)
+        seen: list[str] = []
+        # 11 категорій по 4 за цикл: повний оберт це 11 циклів
+        for _ in range(11):
+            seen.extend(c.key for c in s._category_slice())
+        from collections import Counter
+        counts = Counter(seen)
+        assert set(counts) == {c.key for c in cats}, "якась категорія випала"
+        assert set(counts.values()) == {4}, f"нерівномірно: {counts}"
+
+    def test_zero_means_everything(self):
+        s, cats = self._sniper(11, 0)
+        assert [c.key for c in s._category_slice()] == [c.key for c in cats]
+
+    def test_slice_wraps_around_the_end(self):
+        s, _ = self._sniper(5, 3)
+        assert [c.key for c in s._category_slice()] == ["c0", "c1", "c2"]
+        assert [c.key for c in s._category_slice()] == ["c3", "c4", "c0"]

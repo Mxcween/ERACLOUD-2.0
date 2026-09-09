@@ -75,6 +75,9 @@ class Sniper:
         polling = settings.polling or {}
         # По лімітеру на ринок: різні хости, різні лічильники
         self._request_interval = float(polling.get("min_request_interval", 0.8))
+        # Скільки категорій беремо за цикл (0 = всі). Див. _category_slice.
+        self._cats_per_cycle = int(polling.get("categories_per_cycle", 0))
+        self._cat_cursor = 0
         # Стеля на весь процес, бо Vinted рахує по IP, а не по хосту.
         # Без неї два ринки разом видавали вдвічі більшу частоту, ніж
         # показував конфіг, і 429 починався ще на піднятті сесії.
@@ -324,9 +327,11 @@ class Sniper:
         fetched = 0
         fresh_count = 0
 
+        slice_ = self._category_slice()
+
         async def sweep(market: Market) -> tuple[int, int]:
             seen = fresh = 0
-            for category in self.settings.enabled_categories:
+            for category in slice_:
                 s, f = await self._scan(
                     market, category, brand_ids,
                     observations=observations, deals=deals,
@@ -347,7 +352,9 @@ class Sniper:
         # ціною нікуди не дівається.
         if self.deep_every and self.cycle_count % self.deep_every == 0:
             before = len(deals)
-            deep_seen, deep_fresh = await self._deep_scan(brand_ids, observations, deals)
+            deep_seen, deep_fresh = await self._deep_scan(
+                brand_ids, observations, deals, categories=slice_
+            )
             fetched += deep_seen
             fresh_count += deep_fresh
             # Лишаємо тільки найжирніші: перший прохід інакше вивалює сотню
@@ -398,6 +405,30 @@ class Sniper:
 
         if self.cycle_count % PRUNE_EVERY_CYCLES == 0:
             await self._prune(now_ts)
+
+    def _category_slice(self) -> list[Category]:
+        """Скільки категорій беремо цього циклу.
+
+        Vinted дає цьому серверу близько чотирьох успішних читань каталогу
+        на хвилину - заміряно, не вгадано. Обхід усіх одинадцяти категорій
+        на два ринки це 22 запити, тобто вдвічі більше, ніж нам дозволено, і
+        зайве не просто пропадає: кожна відмова подвоює штраф, той розтягує
+        вже КОЖЕН наступний запит, і врешті ми читаємо менше, ніж якби
+        просили менше. На живому боті це давало 55% відмов і штраф, що
+        намертво стояв у стелі.
+
+        Тому беремо стільки, скільки влазить у квоту, і йдемо по колу.
+        Категорія читається рідше, зате ЧИТАЄТЬСЯ: краще чистий знімок
+        чотирьох стрічок, ніж половина від одинадцяти навмання.
+        """
+        cats = self.settings.enabled_categories
+        step = self._cats_per_cycle
+        if step <= 0 or step >= len(cats):
+            return list(cats)
+        start = self._cat_cursor % len(cats)
+        self._cat_cursor = (start + step) % len(cats)
+        # Беремо по колу, тому зріз може перестрибнути через кінець списку
+        return [cats[(start + i) % len(cats)] for i in range(step)]
 
     async def _scan(
         self,
@@ -495,12 +526,23 @@ class Sniper:
         return len(listings), fresh
 
     async def _deep_scan(
-        self, brand_ids: list[int], observations: list, deals: list
+        self,
+        brand_ids: list[int],
+        observations: list,
+        deals: list,
+        *,
+        categories: list[Category] | None = None,
     ) -> tuple[int, int]:
-        """Дешевий хвіст: те, що висить годинами і зі стрічки новинок випало."""
+        """Дешевий хвіст: те, що висить годинами і зі стрічки новинок випало.
+
+        Ходить тими самими категоріями, що й цикл, а не всіма. Інакше раз на
+        двадцять циклів прилітав залп у 22 запити поверх звичайних восьми -
+        при квоті в чотири читання на хвилину це п'ять хвилин бюджету за раз
+        і штраф у стелі надовго після.
+        """
         async def sweep(market: Market) -> tuple[int, int]:
             seen = fresh = 0
-            for category in self.settings.enabled_categories:
+            for category in (categories or self.settings.enabled_categories):
                 for page in range(1, self.deep_pages + 1):
                     s, f = await self._scan(
                         market, category, brand_ids,
