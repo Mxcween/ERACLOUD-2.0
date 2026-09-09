@@ -60,6 +60,13 @@ MAX_OUTBOX = 60
 # Скільки секунд Telegram тримає getUpdates відкритим, чекаючи на команду.
 # Слухач живе окремо від циклу, тому відповідь приходить одразу.
 COMMAND_LONG_POLL_SECONDS = 25
+# Скільки ще даємо проходу поверх його власного очікування, перш ніж
+# визнати, що він завис. Сам getUpdates уже має свій таймаут, тож запас
+# потрібен лише на відповідь і на запис у базу.
+COMMAND_PASS_GRACE = 45.0
+# Нижня межа паузи між проходами. Захист від гарячого циклу, коли прохід
+# падає миттєво: без неї кожен оберт писав би трейсбек, і бот заклинило б.
+COMMAND_MIN_IDLE = 0.05
 
 
 class Sniper:
@@ -143,6 +150,13 @@ class Sniper:
         self.clients: dict[str, VintedClient] = {}
         self.status_maps: dict[str, StatusMap] = {}
         self.muted: set[int] = set()
+        # Живий слухач команд видно тільки зсередини: зовні бот, який не
+        # відповідає, не відрізняється від бота, у якого немає команд.
+        self._commands_polled = 0
+        self._commands_stuck = 0
+        self._commands_last_ok = 0.0
+        self._command_pass_timeout = COMMAND_LONG_POLL_SECONDS + COMMAND_PASS_GRACE
+        self._command_idle = 2.0
         self._alert_times: list[float] = []
         # Коли який продавець востаннє потрапляв у стрічку. Приманки йдуть
         # пачками з одного акаунта: пʼять однакових пар у різних розмірах
@@ -857,17 +871,43 @@ class Sniper:
         while True:
             started = time.monotonic()
             try:
-                await self._handle_commands(long_poll=COMMAND_LONG_POLL_SECONDS)
-                await self._flush_pending(utc_now_ts())
+                # Сторожовий таймер. Ловити винятки було недостатньо: слухач
+                # помер не від помилки, а від того, що один прохід не
+                # завершився ніколи - і оскільки він ЖЕ не падав, зовні це
+                # виглядало як живий бот, який просто не відповідає на
+                # команди. Прохід не має права тривати довше за своє власне
+                # очікування плюс запас; якщо триває - кидаємо його і
+                # починаємо новий.
+                await asyncio.wait_for(
+                    self._command_pass(), timeout=self._command_pass_timeout
+                )
+                self._commands_polled += 1
+                self._commands_last_ok = time.monotonic()
             except asyncio.CancelledError:
                 raise
+            except asyncio.TimeoutError:
+                self._commands_stuck += 1
+                log.warning(
+                    "прохід по командах завис довше за %.0fс, кидаю і починаю новий "
+                    "(таких разів: %s)",
+                    self._command_pass_timeout, self._commands_stuck,
+                )
             except Exception:  # noqa: BLE001
                 log.exception("слухач команд спіткнувся, продовжую")
             # Якщо Telegram відмовляє миттєво (наприклад, битий токен), не
             # довбимо його в порожньому циклі
-            idle = 2.0 - (time.monotonic() - started)
-            if idle > 0:
-                await asyncio.sleep(idle)
+            # Пауза має нижню межу, і не нульову. Прохід, який падає миттєво
+            # (битий токен, помилка в обробнику), інакше крутив би цикл на
+            # повній швидкості: кожен оберт пише трейсбек у лог, і одна
+            # зламана дрібниця вішає весь процес разом зі скануванням і
+            # доставкою. Межа дешева й робить це неможливим.
+            idle = self._command_idle - (time.monotonic() - started)
+            await asyncio.sleep(max(COMMAND_MIN_IDLE, idle))
+
+    async def _command_pass(self) -> None:
+        """Один прохід: прочитати команди й досилати те, що чекало на чат."""
+        await self._handle_commands(long_poll=COMMAND_LONG_POLL_SECONDS)
+        await self._flush_pending(utc_now_ts())
 
     async def _handle_commands(self, *, long_poll: int = 0) -> None:
         if not self.settings.telegram.configured or self.settings.dry_run:
@@ -1037,6 +1077,18 @@ class Sniper:
                 "checked": self.judge.checked,
                 "rejected": self.judge.rejected,
                 "failed": self.judge.failed,
+            },
+            # Слухач команд живе окремою задачею, і колись він завис так, що
+            # бот справно слав алерти й мовчав на будь-яку команду. Тут видно
+            # одразу: since_ok росте - слухач стоїть.
+            "commands": {
+                "polls": self._commands_polled,
+                "stuck": self._commands_stuck,
+                "since_ok": (
+                    int(time.monotonic() - self._commands_last_ok)
+                    if self._commands_last_ok
+                    else None
+                ),
             },
             "telegram": {
                 "configured": self.settings.telegram.configured,

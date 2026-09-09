@@ -107,7 +107,11 @@ class BotState(Base):
 def build_engine(database_url: str):
     kwargs: dict = {"pool_pre_ping": True, "future": True}
     if database_url.startswith("sqlite"):
-        kwargs["connect_args"] = {"check_same_thread": False}
+        # timeout: скільки чекати на зайняту базу, перш ніж здатись з
+        # помилкою. Без нього заблокований запис міг тримати потік із
+        # невеликого пулу asyncio.to_thread, а через нього - і слухача
+        # команд, який теж пише в базу.
+        kwargs["connect_args"] = {"check_same_thread": False, "timeout": 15}
     engine = create_engine(database_url, **kwargs)
     Base.metadata.create_all(engine)
     log.info("база готова: %s", database_url.split("@")[-1])
