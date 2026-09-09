@@ -188,11 +188,15 @@ class TestWornRunningShoes:
 
 
 class TestPerCategoryCondition:
-    def test_good_condition_is_gone_everywhere(self, settings):
-        """Стан "добре" (3) прибраний з усіх категорій: на фото це плями,
-        катишки й витерті манжети, і такі речі не перепродаються."""
-        assert 3 not in settings.accepted_status_ids()
-        assert 3 not in settings.accepted_status_ids("outerwear")
+    def test_good_condition_passes_for_clothing_but_not_for_shoes(self, settings):
+        """Стан "добре" на одязі робочий, на взутті - ні.
+
+        Для одягу це просто ношена річ, і чи є на ній катишки, тепер видно на
+        фото. Для взуття "добре" означає затерту підошву, а її ніяким зором не
+        врятуєш, тож взуття лишається звуженим.
+        """
+        assert 3 in settings.accepted_status_ids()
+        assert 3 in settings.accepted_status_ids("outerwear")
         assert settings.accepted_status_ids("shoes") == [6, 1, 2]
 
     def test_unknown_category_falls_back_to_default(self, settings):
@@ -221,13 +225,15 @@ class TestConditionIsCheckedTwice:
         )
         assert isinstance(run(listing, settings, registry, shoes, 12.0, bucket="very_good"), Candidate)
 
-    def test_clothing_in_good_is_rejected_too(self, listing_factory, settings, registry, outerwear):
-        """"Добре" на практиці означає плями на колінах і катишки: бренд
-        правильний, а річ не продається."""
+    def test_clothing_in_good_passes(self, listing_factory, settings, registry, outerwear):
+        """Одяг у стані "добре" проходить фільтр: далі його дивиться зір.
+
+        Відсікати цілу третину пропозиції за галочкою продавця, коли можна
+        подивитись на саму річ, - це втрачати нормальні лоти наосліп.
+        """
         listing = listing_factory(brand_title="Nike", title="Kurtka Nike")
         result = run(listing, settings, registry, outerwear, 20.0, bucket="good")
-        assert isinstance(result, Rejected)
-        assert "стан" in result.reason
+        assert isinstance(result, Candidate)
 
     def test_very_good_clothing_passes(self, listing_factory, settings, registry, outerwear):
         listing = listing_factory(brand_title="Nike", title="Kurtka Nike")
@@ -237,7 +243,7 @@ class TestConditionIsCheckedTwice:
 
     def test_accepted_buckets_match_status_ids(self, settings):
         assert settings.accepted_buckets("shoes") == {"new", "very_good"}
-        assert settings.accepted_buckets("outerwear") == {"new", "very_good"}
+        assert settings.accepted_buckets("outerwear") == {"new", "very_good", "good"}
 
 
 class TestBudgetSneakerModels:

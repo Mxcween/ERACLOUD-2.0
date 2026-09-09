@@ -45,20 +45,20 @@ PROMPT = (
     "hole, cracked or peeling print, stretched cuffs, yellowing or general "
     "griminess scores 3 or below.\n"
     "photo_ok: is the garment itself actually visible and identifiable.\n"
-    "desirable: be harsh. You are stocking a curated vintage shop, not a bin. "
-    "Would a collector or a streetwear buyer stop scrolling for THIS piece.\n"
-    "  Score 8-10 only for genuine grails: archive and vintage pieces (roughly "
-    "pre-2010), rare collaborations, outdoor and gorpcore shells, distinctive "
-    "designer cuts, bold all-over prints, pieces people search for by name.\n"
-    "  Score 4-6 for decent but ordinary: clean modern basics from a good brand "
-    "that will sell eventually, nothing anyone is hunting for.\n"
-    "  Score 0-3 for filler: modern running, training and gym performance kit "
-    "(any current-season sportswear line), plain zip jackets and hoodies with a "
-    "small chest logo and nothing else, corporate and golf styling, unflattering "
-    "cuts, and anything that looks like supermarket clothing whatever the label.\n"
+    "desirable: how easily does THIS piece sell on. You run a busy resale shop, "
+    "not a museum - fast-moving stock matters more than rarity.\n"
+    "  Score 7-10 for pieces people hunt: archive and vintage, collaborations, "
+    "outdoor shells, distinctive designer cuts, bold prints.\n"
+    "  Score 4-6 for solid everyday stock: clean, wearable, current pieces from "
+    "a known brand in a normal colour - a plain adidas track top, a Nike hoodie, "
+    "a Ralph Lauren polo. Ordinary, but it moves. This is the common case.\n"
+    "  Score 0-3 ONLY for things that genuinely will not sell: visibly worn out "
+    "or misshapen, an entire garment in a dead colour with nothing else going on, "
+    "corporate or golf styling, shapeless cuts, kidswear, and anything that looks "
+    "like unbranded supermarket clothing.\n"
     "  Colour: an ugly shade as an accent, panel or print is fine and can even "
-    "help. Penalise only when the WHOLE garment is a dead colour - muddy brown, "
-    "washed-out beige, sickly olive, faded pastel - with nothing else going on.\n"
+    "help. Penalise only when the WHOLE garment is a dead muddy shade.\n"
+    "  Do not punish a piece merely for being modern, sporty or ordinary.\n"
     "flags: short tags from: fake, screenshot, stock_photo, wrong_item, stained, "
     "damaged, worn_out, blurry, not_visible, dated, boring, bad_colour, kids_size, bait."
 )
@@ -95,6 +95,15 @@ class _RateLimited(RuntimeError):
     def __init__(self, retry_after: float = 0.0) -> None:
         super().__init__("429")
         self.retry_after = retry_after
+        self.why = "у квоті"
+
+
+class _Unavailable(_RateLimited):
+    """Google прилёг (5xx). Не наша проблема і не привід здаватись."""
+
+    def __init__(self, retry_after: float = 10.0) -> None:
+        super().__init__(retry_after)
+        self.why = "недоступна"
 
 
 def _retry_after(resp: httpx.Response) -> float:
@@ -170,11 +179,20 @@ class PhotoJudge:
                 return model
         return None
 
-    def _rest(self, model: str, seconds: float) -> None:
-        """Ця модель упёрлась у квоту - даємо їй перепочити, беремо сусідню."""
+    def _rest(self, model: str, seconds: float, why: str = "у квоті") -> None:
+        """Ця модель зараз не відповідає - даємо їй паузу, беремо сусідню."""
         self._cooldown[model] = time.monotonic() + max(seconds, 8.0)
         self._penalty = min(self._penalty * 1.5, 8.0)
-        log.info("зір: %s у квоті на %.0fс, пробую іншу модель", model, max(seconds, 8.0))
+        log.info("зір: %s %s на %.0fс, пробую іншу модель", model, why, max(seconds, 8.0))
+
+    def _scrub(self, text: str) -> str:
+        """Ключ не має шансу потрапити в лог.
+
+        Заголовок замість query вже прибрав головний шлях витоку, але текст
+        помилки приходить з чужої бібліотеки, і покладатись на її акуратність
+        не варто: одна зміна формату - і ключ у логах назавжди.
+        """
+        return text.replace(self.api_key, "***") if self.api_key else text
 
     def _relax(self) -> None:
         if self._penalty > 1.0:
@@ -200,7 +218,8 @@ class PhotoJudge:
                 blob = image.content
             except Exception as exc:  # noqa: BLE001
                 self.failed += 1
-                log.warning("зір: фото не завантажилось (%s), пускаю без перевірки", exc)
+                log.warning("зір: фото не завантажилось (%s), пускаю без перевірки",
+                            self._scrub(str(exc)))
                 return CHECK_FAILED
 
             # Стільки спроб, скільки моделей, плюс одна після паузи: доставка
@@ -218,11 +237,12 @@ class PhotoJudge:
                     data = await self._ask(blob, brand, title, category, condition,
                                            price_eur, model)
                 except _RateLimited as exc:
-                    self._rest(model, exc.retry_after)
+                    self._rest(model, exc.retry_after, exc.why)
                     continue
                 except Exception as exc:  # noqa: BLE001
                     self.failed += 1
-                    log.warning("зір: перевірка впала (%s), пускаю без перевірки", exc)
+                    log.warning("зір: перевірка впала (%s), пускаю без перевірки",
+                                self._scrub(str(exc)))
                     return CHECK_FAILED
 
                 self._relax()
@@ -254,12 +274,21 @@ class PhotoJudge:
                 "thinkingConfig": {"thinkingBudget": 0},
             },
         }
+        # Ключ іде заголовком, а не в query. У query він потрапляв би в текст
+        # будь-якої помилки httpx ("... for url ...?key=..."), а звідти прямо
+        # в лог Render. Заголовок у повідомлення про помилку не потрапляє.
         resp = await self._client.post(
             f"{API_ROOT}/models/{model}:generateContent",
-            params={"key": self.api_key}, json=payload,
+            headers={"x-goog-api-key": self.api_key}, json=payload,
         )
         if resp.status_code == 429:
             raise _RateLimited(_retry_after(resp))
+        # 503 та інші 5xx - це Google лежить хвилину, а не наша помилка.
+        # Раніше ми на цьому здавались і лот ішов із поміткою "перевірити не
+        # вдалось". Тепер поводимось як із квотою: ця модель відпочиває,
+        # запит іде в сусідню.
+        if resp.status_code >= 500:
+            raise _Unavailable(_retry_after(resp) or 10.0)
         resp.raise_for_status()
         parts = resp.json()["candidates"][0]["content"]["parts"]
         import json as _json

@@ -58,7 +58,7 @@ class TestRewrite:
         assert "# ceiling_eur" in text, "коментарі мають лишитись на місці"
         parsed = yaml.safe_load(text)
         assert len(parsed["categories"]) == len(settings.categories)
-        assert parsed["conditions"]["accepted_ids"] == [6, 1, 2]
+        assert parsed["conditions"]["accepted_ids"] == [6, 1, 2, 3]
 
     def test_unknown_category_changes_nothing(self, calibrate, config_copy, settings):
         original = config_copy.read_text(encoding="utf-8")
