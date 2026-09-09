@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from collections import Counter
 from contextlib import suppress
@@ -18,13 +17,13 @@ from typing import Any
 import httpx
 
 from .engine.conditions import StatusMap
+from .engine.fat import FatGate
 from .engine.filters import Candidate, Rejected, screen
 from .engine.fx import FxConverter
 from .engine.pricing import PriceBook
 from .engine.ranges import PriceRange, suggestions
 from .engine.schedule import in_quiet_hours
 from .engine.scoring import evaluate
-from .engine.vision import PhotoJudge
 from .health import HealthServer
 from .models import Deal, Listing, utc_now_ts
 from .notify.formatting import HELP_TEXT, format_startup, format_stats
@@ -128,18 +127,15 @@ class Sniper:
             send_photo=bool((settings.alerts or {}).get("send_photo", True)),
             dry_run=settings.dry_run or not settings.telegram.configured,
         )
-        # Зір: та сама модель, що й у студії, але тут вона тільки дивиться і
-        # відповідає текстом - на безкоштовному тарифі це доступно.
-        vision_cfg = (settings.scoring or {}).get("vision") or {}
-        self.judge = PhotoJudge(
-            os.getenv("GEMINI_API_KEY", "").strip(),
-            models=list(vision_cfg.get("models") or []) or None,
-            min_real=int(vision_cfg.get("min_real", 5)),
-            min_condition=int(vision_cfg.get("min_condition", 6)),
-            min_photo=int(vision_cfg.get("min_photo", 4)),
-            min_desirable=int(vision_cfg.get("min_desirable", 5)),
-            min_interval=float(vision_cfg.get("min_interval_seconds", 4.0)),
+        # Планка жиру: рахується з самого потоку знахідок, а не задана числом
+        fat_cfg = (settings.scoring or {}).get("fat") or {}
+        self.fat = FatGate(
+            percentile=float(fat_cfg.get("percentile", 80.0)),
+            window=int(fat_cfg.get("window", 200)),
+            floor_eur=float(fat_cfg.get("floor_eur", 20.0)),
+            warmup_samples=int(fat_cfg.get("warmup_samples", 40)),
         )
+        self.fat_max_per_cycle = int(fat_cfg.get("max_per_cycle", 3))
 
         self.discord = DiscordNotifier(
             settings.discord.webhooks,
@@ -176,7 +172,6 @@ class Sniper:
         # нічого не знаходить, чи тому, що нема куди слати
         self._deals_total = 0
         self._alerts_total = 0
-        self._vision_rejects = 0
         # Пошук і доставка розведені: цикл тільки складає знахідки сюди,
         # а окремий робітник шле їх у своєму темпі.
         self._outbox: asyncio.Queue[tuple[Deal, int]] = asyncio.Queue()
@@ -267,7 +262,6 @@ class Sniper:
             )
 
     async def close(self) -> None:
-        await self.judge.close()
         for client in self.clients.values():
             await client.close()
         await self.notifier.close()
@@ -385,9 +379,24 @@ class Sniper:
         if observations:
             await asyncio.to_thread(self.repo.add_observations, observations)
 
+        # Планка жиру вчиться на ВСІХ знахідках, включно з тими, які самі не
+        # дійдуть: інакше вибірка складалась би з переможців і планка повзла
+        # б угору, поки не перекрила б потік.
+        for deal, _ in deals:
+            self.fat.observe(deal.profit_eur)
+
         queued = 0
         if not warming:
+            # Найжирніші першими, і не більше кількох за цикл. Навіть коли
+            # ринок щедрий, десять алертів підряд ховають найкращий серед
+            # решти - а весь сенс у тому, щоб його було видно.
             for deal, brand_id in sorted(deals, key=lambda d: -d[0].profit_eur):
+                if queued >= self.fat_max_per_cycle:
+                    log.info(
+                        "цього циклу вже %s знахідок, решту (%s) лишаю ринку",
+                        queued, len(deals) - queued,
+                    )
+                    break
                 if self._outbox.qsize() >= MAX_OUTBOX:
                     log.warning("черга відправки повна, найдрібніші знахідки не влізли")
                     break
@@ -663,25 +672,16 @@ class Sniper:
             )
             return False
 
-        # Фото дивимось в останню чергу: тільки для лотів, які реально
-        # зараз підуть. Так запитів на хвилину виходить рівно стільки,
-        # скільки алертів, і безкоштовна квота не тріщить.
-        verdict = await self.judge.judge(
-            deal.listing.photo_url,
-            brand=deal.listing.brand_title,
-            title=deal.listing.title,
-            category=deal.category_name,
-            condition=deal.listing.status_title,
-            price_eur=deal.price_eur,
-        )
-        if not verdict.ok:
-            self._vision_rejects += 1
-            log.info("зір відсіяв: %s | %s", verdict.reason, deal.listing.url)
+        # Остання перевірка: чи ця знахідка краща за те, що трапляється
+        # зазвичай. Пороги вигоди вище відповідають на питання "чи вигідно",
+        # і вигідного багато; тут відсікаємо все, крім верхнього хвоста, щоб
+        # справді жирний лот не губився серед десятка прохідних.
+        fat_ok, note = self.fat.verdict(deal.profit_eur)
+        if not fat_ok:
+            log.info("%s | %s", note, deal.listing.url)
             return False
-        if verdict.note:
-            deal.notes.append(("👁 " if verdict.checked else "👁? ") + verdict.note)
-        elif not verdict.checked and self.judge.configured:
-            deal.notes.append("👁? фото не перевірено")
+        if note:
+            deal.notes.append("💰 " + note)
 
         # Telegram і Discord незалежні. Якщо чат Telegram ще невідомий, а токен
         # заданий, лот чекає в черзі (_flush_pending); Discord тим часом працює
@@ -1072,12 +1072,8 @@ class Sniper:
             "deals_found": self._deals_total,
             "alerts_sent": self._alerts_total,
             "outbox": self._outbox.qsize(),
-            "vision": {
-                "on": self.judge.configured,
-                "checked": self.judge.checked,
-                "rejected": self.judge.rejected,
-                "failed": self.judge.failed,
-            },
+            # Планка жиру: скільки зараз треба заробити, щоб лот дійшов
+            "fat": self.fat.stats(),
             # Слухач команд живе окремою задачею, і колись він завис так, що
             # бот справно слав алерти й мовчав на будь-яку команду. Тут видно
             # одразу: since_ok росте - слухач стоїть.

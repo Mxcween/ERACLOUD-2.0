@@ -7,6 +7,7 @@ import pytest
 
 from dataclasses import replace
 
+from vintsniper.engine.fat import FatGate
 from vintsniper.engine.ranges import PriceRange
 from vintsniper.models import Deal
 from vintsniper.runner import Sniper
@@ -42,22 +43,6 @@ class FakeDiscord:
 
     def tier_index(self, price_eur):
         return 0
-
-
-class FakeJudge:
-    """Зір у тестах завжди пропускає: тут перевіряємо розсилку, не зір."""
-
-    configured = True
-
-    def __init__(self, ok: bool = True) -> None:
-        self.ok = ok
-        self.seen: list[str] = []
-
-    async def judge(self, photo_url, **kwargs):
-        from vintsniper.engine.vision import Verdict
-
-        self.seen.append(photo_url)
-        return Verdict(ok=self.ok, note="" if self.ok else "", flags=[] if self.ok else ["fake"])
 
 
 class FakeRepo:
@@ -110,8 +95,10 @@ def make_sniper(*, has_target: bool = True, discord: bool = True) -> Sniper:
     sniper._alert_times = []
     sniper._seller_alerts = {}
     sniper._alerts_total = 0
-    sniper._vision_rejects = 0
-    sniper.judge = FakeJudge()
+    # Планка жиру в тестах розсилки пропускає все: тут перевіряється
+    # маршрутизація алертів, а не відбір знахідок (для нього є test_fat).
+    sniper.fat = FatGate(floor_eur=0.0, warmup_samples=10**9)
+    sniper.fat_max_per_cycle = 100
     return sniper
 
 
