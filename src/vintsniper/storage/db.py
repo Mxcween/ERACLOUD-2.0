@@ -104,7 +104,23 @@ class BotState(Base):
     value: Mapped[str] = mapped_column(String(400))
 
 
+def normalise_url(database_url: str) -> str:
+    """Приводить рядок від хостера до вигляду, який розуміє SQLAlchemy.
+
+    Neon, Supabase і сам Render видають URL у вигляді postgres://... або
+    postgresql://..., а SQLAlchemy за таким рядком шукає драйвер psycopg2,
+    якого в нас нема. Просити власника правити схему руками означає, що він
+    вставить рядок як є, отримає падіння на старті й вирішить, що Postgres
+    "не працює". Дешевше полагодити тут.
+    """
+    for prefix in ("postgres://", "postgresql://"):
+        if database_url.startswith(prefix):
+            return "postgresql+psycopg://" + database_url[len(prefix):]
+    return database_url
+
+
 def build_engine(database_url: str):
+    database_url = normalise_url(database_url)
     kwargs: dict = {"pool_pre_ping": True, "future": True}
     if database_url.startswith("sqlite"):
         # timeout: скільки чекати на зайняту базу, перш ніж здатись з

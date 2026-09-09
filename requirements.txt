@@ -2,3 +2,6 @@ httpx==0.27.2
 PyYAML==6.0.2
 SQLAlchemy==2.0.36
 python-dotenv==1.0.1
+# Драйвер Postgres. Потрібен лише якщо задано DATABASE_URL на Postgres;
+# без нього база лежить у sqlite і зникає з кожним деплоєм Render.
+psycopg[binary]==3.2.3

@@ -92,3 +92,35 @@ class TestDuplicateIdsInOneBatch:
     def test_those_ids_are_remembered(self, repo):
         repo.filter_unseen("PL", [1, 1, 2], 100)
         assert repo.filter_unseen("PL", [1, 2, 3], 200) == {3}
+
+
+class TestDatabaseUrlFromAHost:
+    """Рядок від Neon чи Supabase має працювати без правок руками.
+
+    Вони видають postgres:// або postgresql://, а SQLAlchemy за таким
+    рядком шукає psycopg2, якого в нас нема. Власник вставить рядок як є, і
+    без цього бот падав би на старті.
+    """
+
+    def test_bare_postgres_scheme_gets_a_driver(self):
+        from vintsniper.storage.db import normalise_url
+
+        assert normalise_url("postgres://u:p@host/db") == "postgresql+psycopg://u:p@host/db"
+        assert normalise_url("postgresql://u:p@host/db") == "postgresql+psycopg://u:p@host/db"
+
+    def test_an_explicit_driver_is_left_alone(self):
+        from vintsniper.storage.db import normalise_url
+
+        url = "postgresql+psycopg://u:p@host/db"
+        assert normalise_url(url) == url
+
+    def test_sqlite_is_untouched(self):
+        from vintsniper.storage.db import normalise_url
+
+        assert normalise_url("sqlite:///data/x.db") == "sqlite:///data/x.db"
+
+    def test_query_string_survives(self):
+        from vintsniper.storage.db import normalise_url
+
+        got = normalise_url("postgresql://u:p@host/db?sslmode=require")
+        assert got.endswith("?sslmode=require")
