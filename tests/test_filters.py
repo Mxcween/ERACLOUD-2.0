@@ -63,9 +63,21 @@ class TestPriceCeiling:
 
 class TestSizeGate:
     def test_rejects_size_outside_whitelist(self, listing_factory, settings, registry, outerwear):
-        result = run(listing_factory(size_title="XXL / 56"), settings, registry, outerwear, 20.0)
+        result = run(listing_factory(size_title="XXXL / 60"), settings, registry, outerwear, 20.0)
         assert isinstance(result, Rejected)
         assert "розмір" in result.reason
+
+    def test_extreme_but_sellable_sizes_pass(self, listing_factory, settings, registry, outerwear):
+        """XS і XXL пропускаємо навмисно.
+
+        Заміряно на живому потоці: разом вони давали більше відмов, ніж усі
+        інші причини вкупі. Перепродаються повільніше за M і L, але ми не
+        носимо, а перепродаємо, і зайвий тиждень очікування дешевший за
+        вдвічі вужчий потік. XXXL лишається за бортом: воно майже не йде.
+        """
+        for size in ("XS / 44", "XXL / 56"):
+            result = run(listing_factory(size_title=size), settings, registry, outerwear, 20.0)
+            assert isinstance(result, Candidate), f"{size} мав пройти"
 
     def test_accepts_whitelisted_size(self, listing_factory, settings, registry, outerwear):
         assert isinstance(
