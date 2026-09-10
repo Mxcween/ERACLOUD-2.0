@@ -69,3 +69,125 @@ brands:
   # стабільний попит, майже нема підробок бо підробляти нема сенсу.
   - {name: "Adidas Originals",    tier: B, replica_risk: medium}
   - {name: "Nike ACG",            tier: A, replica_risk: medium}
+
+  # --- Розширення заради обсягу ---
+  # Додано, коли стало ясно, що вузьке місце - не пороги, а асортимент: за
+  # 45 хвилин фільтри на вході відкинули лише 4 лоти, тобто ріже вже не
+  # фільтр, а те, що бот просто не дивиться на решту ринку. Vinted спокійно
+  # приймає 200 брендів в одному запиті (перевірено), тож розширення нічого
+  # не коштує в запитах - це та сама стрічка, лише ширша.
+  #
+  # Тіри тут проставлені за репутацією, а НЕ заміряні, на відміну від
+  # списку вище. Це свідомий компроміс: поки по зв'язці бренд+категорія не
+  # набереться 8 живих оголошень, оцінка йде з базової таблиці ще й із
+  # надбавкою unmeasured_multiple_premium, тому помилка в тірі коштує
+  # пропущеного лота, а не поганої покупки. Через добу-другу медіани
+  # переважать здогадки. Перекалібрувати: python scripts/calibrate.py
+
+  # Преміум і дизайнерське
+  - {name: "Balenciaga",          tier: S, replica_risk: high}
+  - {name: "Prada",               tier: S, replica_risk: high}
+  - {name: "Versace",             tier: S, replica_risk: high}
+  - {name: "Off-White",           tier: S, replica_risk: high}
+  - {name: "Acne Studios",        tier: S, replica_risk: medium}
+  - {name: "Maison Margiela",     tier: S, replica_risk: high}
+  - {name: "Comme des Garcons",   tier: S, replica_risk: high}
+  - {name: "Rick Owens",          tier: S, replica_risk: high}
+  - {name: "Bottega Veneta",      tier: S, replica_risk: high}
+  - {name: "Saint Laurent",       tier: S, replica_risk: high}
+  - {name: "Kenzo",               tier: S, replica_risk: high}
+  - {name: "Diesel",              tier: A, replica_risk: medium}
+  - {name: "Belstaff",            tier: S, replica_risk: medium}
+  - {name: "Parajumpers",         tier: S, replica_risk: high}
+  - {name: "Woolrich",            tier: S, replica_risk: medium}
+  - {name: "Mackage",             tier: S, replica_risk: medium}
+  - {name: "Peuterey",            tier: A, replica_risk: medium}
+  - {name: "Save The Duck",       tier: A, replica_risk: low}
+
+  # Аутдор: тримає ціну краще за вуличне, підробляють рідко
+  - {name: "Fjallraven",          tier: A, replica_risk: low}
+  - {name: "Haglofs",             tier: A, replica_risk: low}
+  - {name: "Mammut",              tier: A, replica_risk: low}
+  - {name: "Klattermusen",        tier: S, replica_risk: low}
+  - {name: "Marmot",              tier: A, replica_risk: low}
+  - {name: "Berghaus",            tier: A, replica_risk: low}
+  - {name: "Helly Hansen",        tier: A, replica_risk: low}
+  - {name: "Columbia",            tier: B, replica_risk: low}
+  - {name: "Jack Wolfskin",       tier: B, replica_risk: low}
+  - {name: "Montane",             tier: A, replica_risk: low}
+  - {name: "Rab",                 tier: A, replica_risk: low}
+  - {name: "Peak Performance",    tier: A, replica_risk: low}
+  - {name: "Didriksons",          tier: B, replica_risk: low}
+
+  # Робочий одяг і денім
+  - {name: "Dickies",             tier: B, replica_risk: low}
+  - {name: "G-Star RAW",          tier: B, replica_risk: medium}
+  - {name: "Wrangler",            tier: B, replica_risk: low}
+  - {name: "Lee",                 tier: B, replica_risk: low}
+  - {name: "Edwin",               tier: A, replica_risk: low}
+  - {name: "Nudie Jeans",         tier: A, replica_risk: low}
+  - {name: "Replay",              tier: B, replica_risk: low}
+  - {name: "Pepe Jeans",          tier: B, replica_risk: low}
+
+  # Класика і мідл
+  - {name: "Hugo Boss",           tier: A, replica_risk: high}
+  - {name: "Armani",              tier: A, replica_risk: high}
+  - {name: "Paul Smith",          tier: A, replica_risk: medium}
+  - {name: "Ted Baker",           tier: B, replica_risk: low}
+  - {name: "Ben Sherman",         tier: B, replica_risk: low}
+  - {name: "Gant",                tier: B, replica_risk: low}
+  - {name: "Scotch & Soda",       tier: B, replica_risk: low}
+  - {name: "Superdry",            tier: B, replica_risk: medium}
+  - {name: "Hackett",             tier: B, replica_risk: low}
+  - {name: "Tommy Jeans",         tier: B, replica_risk: high}
+
+  # Спорт і вулиця: основний обсяг
+  - {name: "Under Armour",        tier: B, replica_risk: medium}
+  - {name: "Ellesse",             tier: B, replica_risk: low}
+  - {name: "Sergio Tacchini",     tier: B, replica_risk: low}
+  - {name: "Umbro",               tier: B, replica_risk: low}
+  - {name: "Le Coq Sportif",      tier: B, replica_risk: low}
+  - {name: "Russell Athletic",    tier: B, replica_risk: low}
+  - {name: "Lonsdale",            tier: B, replica_risk: low}
+  - {name: "Everlast",            tier: B, replica_risk: low}
+  - {name: "Hummel",              tier: B, replica_risk: low}
+  - {name: "Diadora",             tier: B, replica_risk: low}
+  - {name: "Lotto",               tier: B, replica_risk: low}
+  - {name: "Erima",               tier: B, replica_risk: low}
+  - {name: "Joma",                tier: B, replica_risk: low}
+  - {name: "Macron",              tier: B, replica_risk: low}
+  - {name: "Castore",             tier: B, replica_risk: low}
+  - {name: "Gymshark",            tier: B, replica_risk: low}
+
+  # Взуття
+  - {name: "Dr. Martens",         tier: A, replica_risk: medium}
+  - {name: "Timberland",          tier: B, replica_risk: medium}
+  - {name: "Birkenstock",         tier: B, replica_risk: medium}
+  - {name: "Clarks",              tier: B, replica_risk: low}
+  - {name: "Veja",                tier: B, replica_risk: medium}
+  - {name: "Hoka",                tier: A, replica_risk: medium}
+  - {name: "On",                  tier: A, replica_risk: medium}
+  - {name: "Saucony",             tier: B, replica_risk: low}
+  - {name: "Karhu",               tier: B, replica_risk: low}
+  - {name: "Palladium",           tier: B, replica_risk: low}
+
+  # Скейт і серф
+  - {name: "Thrasher",            tier: B, replica_risk: high}
+  - {name: "Santa Cruz",          tier: B, replica_risk: medium}
+  - {name: "Element",             tier: B, replica_risk: low}
+  - {name: "Volcom",              tier: B, replica_risk: low}
+  - {name: "Quiksilver",          tier: B, replica_risk: low}
+  - {name: "Billabong",           tier: B, replica_risk: low}
+  - {name: "Rip Curl",            tier: B, replica_risk: low}
+  - {name: "Obey",                tier: B, replica_risk: medium}
+  - {name: "HUF",                 tier: B, replica_risk: medium}
+
+  # Німецькі та скандинавські масові, яких багато на DE і PL
+  - {name: "Only & Sons",         tier: B, replica_risk: low}
+  - {name: "Jack & Jones",        tier: B, replica_risk: low}
+  - {name: "Selected Homme",      tier: B, replica_risk: low}
+  - {name: "Marc O'Polo",         tier: B, replica_risk: low}
+  - {name: "Camel Active",        tier: B, replica_risk: low}
+  - {name: "Bogner",              tier: A, replica_risk: medium}
+  - {name: "Wellensteyn",         tier: A, replica_risk: medium}
+  - {name: "Schoffel",            tier: A, replica_risk: low}
