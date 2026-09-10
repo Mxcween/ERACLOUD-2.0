@@ -57,7 +57,7 @@ categories:
   - id: 1206
     key: outerwear
     name: Куртки та верхній одяг
-    ceiling_eur: 220
+    ceiling_eur: 300
     weight_kg: 1.2
     baseline_eur: {S: 215, A: 70, B: 35}
     min_profit_eur: 13
@@ -112,7 +112,7 @@ categories:
   - id: 1242
     key: shoes
     name: Кросівки
-    ceiling_eur: 150
+    ceiling_eur: 200
     weight_kg: 1.1
     baseline_eur: {S: 100, A: 55, B: 46}
     min_profit_eur: 16
