@@ -422,3 +422,35 @@ class TestPlaceholderSizes:
         """Послаблення стосується лише невідомого, а не завідомо чужого."""
         result = run(listing_factory(size_title="XXXL"), settings, registry, outerwear, 20.0)
         assert isinstance(result, Rejected)
+
+
+class TestStatusFallback:
+    """Провал опитування назв станів має коштувати неточності, не сліпоти.
+
+    Заміряно на живому боті: польська мапа не піднялась на старті (429 у
+    найгарячіший момент), і ринок PL мовчки відкидав усе підряд - 126 лотів
+    за 25 хвилин з поміткою "невідомий стан 'Bardzo dobry'". До наступного
+    деплою половина бота була сліпа.
+    """
+
+    def test_known_titles_work_without_probing(self):
+        from vintsniper.engine.conditions import StatusMap
+
+        buckets = {"new": [6, 1], "very_good": [2], "good": [3]}
+        fresh = StatusMap("PL", buckets)   # жодного запиту до API
+
+        assert fresh.bucket("Bardzo dobry") == "very_good"
+        assert fresh.bucket("Nowy z metką") == "new"
+        assert fresh.bucket("Nowy bez metki") == "new"
+        assert fresh.bucket("Sehr gut") == "very_good"
+        assert fresh.bucket("Neu mit Etikett") == "new"
+
+    def test_an_unprobed_map_says_so(self):
+        from vintsniper.engine.conditions import StatusMap
+
+        assert StatusMap("PL", {"new": [6]}).probed is False
+
+    def test_nonsense_is_still_unknown(self):
+        from vintsniper.engine.conditions import StatusMap
+
+        assert StatusMap("PL", {"new": [6]}).bucket("абракадабра") is None

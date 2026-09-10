@@ -329,6 +329,12 @@ class Sniper:
         if self.fx.needs_refresh():
             await self.fx.refresh()
 
+        # Мапа станів піднімається на старті, коли бот найлегше ловить 429.
+        # Якщо тоді не вдалось, спроба має повторитись сама: інакше ринок
+        # працює за запасним словником до наступного деплою, а це тиха
+        # неточність, про яку ніхто не дізнається.
+        await self._reprobe_status_maps()
+
         # Команди слухає окрема задача (listen_commands), тут лише досилаємо
         # те, що чекало на чат.
         await self._flush_pending(now_ts)
@@ -437,6 +443,19 @@ class Sniper:
 
         if self.cycle_count % PRUNE_EVERY_CYCLES == 0:
             await self._prune(now_ts)
+
+    async def _reprobe_status_maps(self) -> None:
+        """Добирає назви станів для ринків, де опитування не вдалось."""
+        accepted = self.settings.accepted_status_ids()
+        probe_catalog = self.settings.enabled_categories[0].id
+        for code, status_map in self.status_maps.items():
+            if status_map.probed:
+                continue
+            client = self.clients.get(code)
+            if client is None:
+                continue
+            log.info("[%s] пробую дочитати назви станів", code)
+            await status_map.resolve(client, accepted, probe_catalog)
 
     def _category_slice(self) -> list[Category]:
         """Скільки категорій беремо цього циклу.
@@ -1130,6 +1149,11 @@ class Sniper:
             # пускають, і жодні пороги фільтра тут ні до чого.
             "fetch": {
                 code: dict(client.stats) for code, client in self.clients.items()
+            },
+            # false означає, що ринок працює за запасним словником назв
+            # станів, а не за прочитаними з API
+            "status_probed": {
+                code: m.probed for code, m in self.status_maps.items()
             },
             "last_error": self.last_error,
         }
