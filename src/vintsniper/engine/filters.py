@@ -137,5 +137,13 @@ def _size_ok(listing: Listing, settings: Settings, category: Category) -> bool:
             hi = float(sizes_cfg.get("waist_eu_max", 99))
             return lo <= eu <= hi
 
+    # Розмір-заглушка ("Einheitsgröße", "Sonstige", "Uniwersalny") означає
+    # не "не той розмір", а "продавець не вказав". Відсікати за незнання -
+    # це втрачати наосліп, тому пропускаємо: далі лот однаково проходить
+    # пороги вигоди. Взуття сюди не потрапляє, у нього гілка вище.
+    label = listing.size_title.strip().casefold()
+    if label in {s.strip().casefold() for s in (sizes_cfg.get("one_size_labels") or [])}:
+        return True
+
     # Порожній розмір трапляється в аксесуарах і частині верхнього одягу
     return not listing.size_title.strip()

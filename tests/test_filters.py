@@ -394,3 +394,31 @@ class TestTrouserSizes:
         """Куртка з розміром "48" не має проходити як штани."""
         result = run(listing_factory(size_title="48"), settings, registry, outerwear, 20.0)
         assert isinstance(result, Rejected)
+
+
+class TestPlaceholderSizes:
+    """"Розмір невідомий" - не те саме, що "розмір не підходить".
+
+    Продавці часто лишають "Einheitsgröße", "Sonstige" чи "Uniwersalny".
+    Заміряно: 46 відмов за 25 хвилин на самих лише цих написах.
+    """
+
+    def test_placeholder_passes_for_clothing(self, listing_factory, settings, registry, outerwear):
+        for label in ("Einheitsgröße", "Sonstige", "Uniwersalny", "One size"):
+            result = run(listing_factory(size_title=label), settings, registry, outerwear, 20.0)
+            assert isinstance(result, Candidate), f"{label} мав пройти"
+
+    def test_placeholder_still_blocks_shoes(self, listing_factory, settings, registry, shoes):
+        """У взутті відсутність числа означає шнурки або коробку, а не пару.
+
+        Це окремий запобіжник, і послаблення для одягу не має його зачепити.
+        """
+        result = run(listing_factory(size_title="Einheitsgröße"), settings, registry, shoes, 20.0)
+        assert isinstance(result, Rejected)
+
+    def test_a_real_size_we_do_not_want_is_still_rejected(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Послаблення стосується лише невідомого, а не завідомо чужого."""
+        result = run(listing_factory(size_title="XXXL"), settings, registry, outerwear, 20.0)
+        assert isinstance(result, Rejected)
