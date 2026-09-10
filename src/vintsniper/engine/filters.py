@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from ..models import Listing
 from ..settings import Category, Settings
 from ..vinted.brands import BrandRegistry, ResolvedBrand
-from .sizes import clothing_size, shoe_size_eu
+from .sizes import clothing_size, shoe_size_eu, waist_sizes
 from .titles import find_word
 
 
@@ -121,7 +121,21 @@ def _size_ok(listing: Listing, settings: Settings, category: Category) -> bool:
     if not allowed:
         return True
     size = clothing_size(listing.size_title)
-    if size is None:
-        # Порожній розмір трапляється в аксесуарах і частині верхнього одягу
-        return not listing.size_title.strip()
-    return size in allowed
+    if size is not None:
+        return size in allowed
+
+    # Штани міряють талією, а не буквами. Без цього джинси й штани відсіювались
+    # майже повністю: "W32 | DE 48" для буквеного фільтра просто не розмір.
+    if category.key in (sizes_cfg.get("waist_categories") or []):
+        inches, eu = waist_sizes(listing.size_title)
+        if inches is not None:
+            lo = float(sizes_cfg.get("waist_in_min", 0))
+            hi = float(sizes_cfg.get("waist_in_max", 99))
+            return lo <= inches <= hi
+        if eu is not None:
+            lo = float(sizes_cfg.get("waist_eu_min", 0))
+            hi = float(sizes_cfg.get("waist_eu_max", 99))
+            return lo <= eu <= hi
+
+    # Порожній розмір трапляється в аксесуарах і частині верхнього одягу
+    return not listing.size_title.strip()

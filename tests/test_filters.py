@@ -365,3 +365,32 @@ class TestShoeCategoryIsTrainersOnly:
         """Другий рубіж на випадок, якщо продавець запхне тапки в кросівки."""
         listing = listing_factory(brand_title="Adidas", title="Adiletten adidas", size_title="46")
         assert isinstance(run(listing, settings, registry, shoes, 4.9, bucket="new"), Rejected)
+
+
+class TestTrouserSizes:
+    """Джинси й штани не мають буквеного розміру, і це їх убивало."""
+
+    def test_waist_in_range_passes(self, listing_factory, settings, registry):
+        jeans = settings.category_by_id(257)
+        for size in ("W32 | DE 48", "46 | W30", "50 | W34"):
+            result = run(listing_factory(size_title=size), settings, registry, jeans, 20.0)
+            assert isinstance(result, Candidate), f"{size} мав пройти"
+
+    def test_waist_outside_range_is_rejected(self, listing_factory, settings, registry):
+        jeans = settings.category_by_id(257)
+        result = run(listing_factory(size_title="W44 | DE 60"), settings, registry, jeans, 20.0)
+        assert isinstance(result, Rejected)
+
+    def test_letter_size_still_wins_where_it_exists(self, listing_factory, settings, registry):
+        """Джогери бувають і в S/M/L - буквений шлях має лишитись першим."""
+        jeans = settings.category_by_id(257)
+        assert isinstance(
+            run(listing_factory(size_title="L / 52"), settings, registry, jeans, 20.0), Candidate
+        )
+
+    def test_waist_rule_does_not_leak_into_other_categories(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Куртка з розміром "48" не має проходити як штани."""
+        result = run(listing_factory(size_title="48"), settings, registry, outerwear, 20.0)
+        assert isinstance(result, Rejected)
