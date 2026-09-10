@@ -1,4 +1,23 @@
-# Бренди для перекупа.
+# Бренди для перекупа. ТІЛЬКИ ХОДОВІ - список заміряний, а не складений.
+#
+# Правило відбору: попит = (медіана вподобань на лот) x (частка лотів із 5+
+# вподобаннями), поріг 5.0. Заміряно на вибірці до 96 живих лотів на бренд
+# у семи наших категоріях, скриптом у scratchpad; цифри в коментарях біля
+# кожного бренду - звідти.
+#
+# Чому саме вподобання: це єдиний сигнал попиту, який Vinted віддає прямо в
+# стрічці. Ціна каже, скільки річ КОШТУЄ, а не чи її беруть - Mackage має
+# медіану 230 євро і при цьому 3 вподобання на лот, тобто висить.
+#
+# Слабке місце методу назване чесно: вподобання накопичуються з часом, тому
+# бренд, який розлітається за годину, теоретично може виглядати тихішим за
+# той, що місяцями збирає лайки. На практиці рейтинг збігся з реальністю
+# впритул (угорі Rick Owens, Supreme, Stussy, Margiela, TNF, Arc'teryx,
+# Patagonia; унизу Erima, Macron, Joma, Castore), тож метод лишаємо.
+#
+# За цим порогом прибрано 57 брендів, серед них Dr. Martens (6 вподобань,
+# 64%), Fila (6, 58%), Kappa (5, 59%), Tommy Hilfiger (5, 54%). Це не
+# помилка вимірювання, це і є "не ходові": відомі, але лежать.
 #
 # Тіри розставлені НЕ за репутацією, а за виміряною медіаною цін на vinted.de
 # у категорії верхнього одягу (96 лотів на бренд, заміряно скриптом
@@ -17,58 +36,54 @@
 
 brands:
   # --- S: преміум з підтвердженою ціною ---
-  - {name: "Canada Goose",        tier: S, replica_risk: high}     # медіана 350
-  - {name: "Moncler",             tier: S, replica_risk: high}     # 300
-  - {name: "Stone Island",        tier: S, replica_risk: high}     # 190
-  - {name: "C.P. Company",        tier: S, replica_risk: high}     # 180
-  - {name: "Arc'teryx",           tier: S, replica_risk: high}     # 179
-  - {name: "Burberry",            tier: S, replica_risk: high}     # 170
+  - {name: "Canada Goose",        tier: S, replica_risk: high}   # 83€ · вподобань 11 · гарячих 74%
+  - {name: "Moncler",             tier: S, replica_risk: high}   # 32€ · вподобань 11 · гарячих 80%
+  - {name: "Stone Island",        tier: S, replica_risk: high}   # 46€ · вподобань 12 · гарячих 85%
+  - {name: "C.P. Company",        tier: S, replica_risk: high}   # 48€ · вподобань 10 · гарячих 75%
+  - {name: "Arc'teryx",           tier: S, replica_risk: high}   # 73€ · вподобань 20 · гарячих 88%
+  - {name: "Burberry",            tier: S, replica_risk: high}   # 27€ · вподобань 11 · гарячих 76%
   # Люкс: потрібен передусім заради кепок, див. title_blocklist_unless_brand
-  - {name: "Gucci",               tier: S, replica_risk: high}
-  - {name: "Louis Vuitton",       tier: S, replica_risk: high}
+  - {name: "Gucci",               tier: S, replica_risk: high}   # 43€ · вподобань 11 · гарячих 81%
+  - {name: "Louis Vuitton",       tier: S, replica_risk: high}   # 212€ · вподобань 8 · гарячих 69%
   # Вуличні бренди, які на відміну від Trapstar та Corteiz реально тримають
   # ціну: заміри по верхньому одягу на vinted.de підтвердили преміум-рівень.
-  - {name: "Vivienne Westwood",   tier: S, replica_risk: high}     # 275
-  - {name: "Supreme",             tier: S, replica_risk: high}     # 225
-  - {name: "A Bathing Ape",       tier: S, replica_risk: high}     # 150
-  - {name: "Palace",              tier: S, replica_risk: high}     # 149
+  - {name: "Vivienne Westwood",   tier: S, replica_risk: high}   # 28€ · вподобань 13 · гарячих 76%
+  - {name: "Supreme",             tier: S, replica_risk: high}   # 40€ · вподобань 36 · гарячих 96%
+  - {name: "A Bathing Ape",       tier: S, replica_risk: high}   # 30€ · вподобань 18 · гарячих 91%
+  - {name: "Palace",              tier: S, replica_risk: high}   # 26€ · вподобань 13 · гарячих 91%
 
   # --- A: робочий тір ---
-  - {name: "Barbour",             tier: A, replica_risk: medium}   # 125
-  - {name: "Carhartt WIP",        tier: A, replica_risk: medium}   # 80
-  - {name: "Ralph Lauren",        tier: A, replica_risk: high}     # 80
-  - {name: "Stussy",              tier: A, replica_risk: high}     # 80
-  - {name: "Polo Ralph Lauren",   tier: A, replica_risk: high}     # 74
-  - {name: "Salomon",             tier: A, replica_risk: medium}   # 70
-  - {name: "Carhartt",            tier: A, replica_risk: medium}   # 55
+  - {name: "Barbour",             tier: A, replica_risk: medium}   # 25€ · вподобань 10 · гарячих 76%
+  - {name: "Carhartt WIP",        tier: A, replica_risk: medium}   # 25€ · вподобань 8 · гарячих 71%
+  - {name: "Ralph Lauren",        tier: A, replica_risk: high}   # 16€ · вподобань 14 · гарячих 79%
+  - {name: "Stussy",              tier: A, replica_risk: high}   # 22€ · вподобань 30 · гарячих 95%
+  - {name: "Polo Ralph Lauren",   tier: A, replica_risk: high}   # 19€ · вподобань 11 · гарячих 77%
+  - {name: "Salomon",             tier: A, replica_risk: medium}   # 35€ · вподобань 13 · гарячих 86%
+  - {name: "Carhartt",            tier: A, replica_risk: medium}   # 23€ · вподобань 14 · гарячих 78%
 
   # --- B: масові бренди, основний обсяг ---
-  - {name: "Jordan",              tier: B, replica_risk: high}     # 52
-  - {name: "The North Face",      tier: B, replica_risk: high}     # 50
-  - {name: "Patagonia",           tier: B, replica_risk: medium}   # 50
-  - {name: "Lacoste",             tier: B, replica_risk: high}     # 50
-  - {name: "New Balance",         tier: B, replica_risk: medium}   # 40
-  - {name: "Napapijri",           tier: B, replica_risk: medium}   # 40
-  - {name: "Nike",                tier: B, replica_risk: high}
-  - {name: "Adidas",              tier: B, replica_risk: high}
-  - {name: "Puma",                tier: B, replica_risk: medium}
-  - {name: "Reebok",              tier: B, replica_risk: low}
-  - {name: "Champion",            tier: B, replica_risk: medium}
-  - {name: "Levi's",              tier: B, replica_risk: medium}
-  - {name: "Tommy Hilfiger",      tier: B, replica_risk: high}
-  - {name: "Calvin Klein",        tier: B, replica_risk: high}
-  - {name: "Vans",                tier: B, replica_risk: medium}
-  - {name: "Converse",            tier: B, replica_risk: medium}
-  - {name: "Fila",                tier: B, replica_risk: low}
-  - {name: "Kappa",               tier: B, replica_risk: low}
-  - {name: "Asics",               tier: B, replica_risk: medium}
-  - {name: "Fred Perry",          tier: B, replica_risk: medium}
+  - {name: "Jordan",              tier: B, replica_risk: high}   # 25€ · вподобань 14 · гарячих 86%
+  - {name: "The North Face",      tier: B, replica_risk: high}   # 21€ · вподобань 19 · гарячих 94%
+  - {name: "Patagonia",           tier: B, replica_risk: medium}   # 46€ · вподобань 20 · гарячих 84%
+  - {name: "Lacoste",             tier: B, replica_risk: high}   # 15€ · вподобань 10 · гарячих 73%
+  - {name: "New Balance",         tier: B, replica_risk: medium}   # 30€ · вподобань 11 · гарячих 82%
+  - {name: "Napapijri",           tier: B, replica_risk: medium}   # 18€ · вподобань 9 · гарячих 74%
+  - {name: "Nike",                tier: B, replica_risk: high}   # 21€ · вподобань 12 · гарячих 70%
+  - {name: "Adidas",              tier: B, replica_risk: high}   # 21€ · вподобань 11 · гарячих 62%
+  - {name: "Puma",                tier: B, replica_risk: medium}   # 13€ · вподобань 11 · гарячих 69%
+  - {name: "Reebok",              tier: B, replica_risk: low}   # 15€ · вподобань 8 · гарячих 72%
+  - {name: "Champion",            tier: B, replica_risk: medium}   # 7€ · вподобань 8 · гарячих 71%
+  - {name: "Levi's",              tier: B, replica_risk: medium}   # 18€ · вподобань 8 · гарячих 72%
+  - {name: "Calvin Klein",        tier: B, replica_risk: high}   # 12€ · вподобань 10 · гарячих 74%
+  - {name: "Vans",                tier: B, replica_risk: medium}   # 14€ · вподобань 8 · гарячих 84%
+  - {name: "Asics",               tier: B, replica_risk: medium}   # 51€ · вподобань 13 · гарячих 82%
+  - {name: "Fred Perry",          tier: B, replica_risk: medium}   # 14€ · вподобань 9 · гарячих 75%
 
   # --- Вінтажний спортивний одяг ---
   # Ніша 80-90-х: тренувальні костюми, вітрівки, олімпійки. Дешево на вході,
   # стабільний попит, майже нема підробок бо підробляти нема сенсу.
-  - {name: "Adidas Originals",    tier: B, replica_risk: medium}
-  - {name: "Nike ACG",            tier: A, replica_risk: medium}
+  - {name: "Adidas Originals",    tier: B, replica_risk: medium}   # 21€ · вподобань 11 · гарячих 80%
+  - {name: "Nike ACG",            tier: A, replica_risk: medium}   # 33€ · вподобань 14 · гарячих 85%
 
   # --- Розширення заради обсягу ---
   # Додано, коли стало ясно, що вузьке місце - не пороги, а асортимент: за
@@ -85,109 +100,56 @@ brands:
   # переважать здогадки. Перекалібрувати: python scripts/calibrate.py
 
   # Преміум і дизайнерське
-  - {name: "Balenciaga",          tier: S, replica_risk: high}
-  - {name: "Prada",               tier: S, replica_risk: high}
-  - {name: "Versace",             tier: S, replica_risk: high}
-  - {name: "Off-White",           tier: S, replica_risk: high}
-  - {name: "Acne Studios",        tier: S, replica_risk: medium}
-  - {name: "Maison Margiela",     tier: S, replica_risk: high}
-  - {name: "Comme des Garcons",   tier: S, replica_risk: high}
-  - {name: "Rick Owens",          tier: S, replica_risk: high}
-  - {name: "Bottega Veneta",      tier: S, replica_risk: high}
-  - {name: "Saint Laurent",       tier: S, replica_risk: high}
-  - {name: "Kenzo",               tier: S, replica_risk: high}
-  - {name: "Diesel",              tier: A, replica_risk: medium}
-  - {name: "Belstaff",            tier: S, replica_risk: medium}
-  - {name: "Parajumpers",         tier: S, replica_risk: high}
-  - {name: "Woolrich",            tier: S, replica_risk: medium}
-  - {name: "Mackage",             tier: S, replica_risk: medium}
-  - {name: "Peuterey",            tier: A, replica_risk: medium}
-  - {name: "Save The Duck",       tier: A, replica_risk: low}
+  - {name: "Balenciaga",          tier: S, replica_risk: high}   # 86€ · вподобань 22 · гарячих 81%
+  - {name: "Prada",               tier: S, replica_risk: high}   # 52€ · вподобань 13 · гарячих 80%
+  - {name: "Versace",             tier: S, replica_risk: high}   # 15€ · вподобань 9 · гарячих 69%
+  - {name: "Off-White",           tier: S, replica_risk: high}   # 21€ · вподобань 12 · гарячих 71%
+  - {name: "Acne Studios",        tier: S, replica_risk: medium}   # 36€ · вподобань 9 · гарячих 72%
+  - {name: "Maison Margiela",     tier: S, replica_risk: high}   # 118€ · вподобань 22 · гарячих 90%
+  - {name: "Comme des Garcons",   tier: S, replica_risk: high}   # 32€ · вподобань 22 · гарячих 89%
+  - {name: "Rick Owens",          tier: S, replica_risk: high}   # 81€ · вподобань 36 · гарячих 98%
+  - {name: "Bottega Veneta",      tier: S, replica_risk: high}   # 103€ · вподобань 14 · гарячих 81%
+  - {name: "Saint Laurent",       tier: S, replica_risk: high}   # 92€ · вподобань 22 · гарячих 93%
+  - {name: "Diesel",              tier: A, replica_risk: medium}   # 16€ · вподобань 8 · гарячих 75%
+  - {name: "Parajumpers",         tier: S, replica_risk: high}   # 49€ · вподобань 8 · гарячих 70%
 
   # Аутдор: тримає ціну краще за вуличне, підробляють рідко
-  - {name: "Fjallraven",          tier: A, replica_risk: low}
-  - {name: "Haglofs",             tier: A, replica_risk: low}
-  - {name: "Mammut",              tier: A, replica_risk: low}
-  - {name: "Klattermusen",        tier: S, replica_risk: low}
-  - {name: "Marmot",              tier: A, replica_risk: low}
-  - {name: "Berghaus",            tier: A, replica_risk: low}
-  - {name: "Helly Hansen",        tier: A, replica_risk: low}
-  - {name: "Columbia",            tier: B, replica_risk: low}
-  - {name: "Jack Wolfskin",       tier: B, replica_risk: low}
-  - {name: "Montane",             tier: A, replica_risk: low}
-  - {name: "Rab",                 tier: A, replica_risk: low}
-  - {name: "Peak Performance",    tier: A, replica_risk: low}
-  - {name: "Didriksons",          tier: B, replica_risk: low}
+  - {name: "Fjallraven",          tier: A, replica_risk: low}   # 41€ · вподобань 9 · гарячих 77%
+  - {name: "Haglofs",             tier: A, replica_risk: low}   # 31€ · вподобань 11 · гарячих 76%
+  - {name: "Mammut",              tier: A, replica_risk: low}   # 27€ · вподобань 12 · гарячих 86%
+  - {name: "Klattermusen",        tier: S, replica_risk: low}   # 110€ · вподобань 20 · гарячих 88%
+  - {name: "Marmot",              tier: A, replica_risk: low}   # 21€ · вподобань 9 · гарячих 72%
+  - {name: "Helly Hansen",        tier: A, replica_risk: low}   # 20€ · вподобань 9 · гарячих 69%
+  - {name: "Columbia",            tier: B, replica_risk: low}   # 21€ · вподобань 11 · гарячих 76%
+  - {name: "Jack Wolfskin",       tier: B, replica_risk: low}   # 19€ · вподобань 9 · гарячих 70%
+  - {name: "Rab",                 tier: A, replica_risk: low}   # 25€ · вподобань 12 · гарячих 86%
+  - {name: "Peak Performance",    tier: A, replica_risk: low}   # 12€ · вподобань 7 · гарячих 72%
 
   # Робочий одяг і денім
-  - {name: "Dickies",             tier: B, replica_risk: low}
-  - {name: "G-Star RAW",          tier: B, replica_risk: medium}
-  - {name: "Wrangler",            tier: B, replica_risk: low}
-  - {name: "Lee",                 tier: B, replica_risk: low}
-  - {name: "Edwin",               tier: A, replica_risk: low}
-  - {name: "Nudie Jeans",         tier: A, replica_risk: low}
-  - {name: "Replay",              tier: B, replica_risk: low}
-  - {name: "Pepe Jeans",          tier: B, replica_risk: low}
+  - {name: "Dickies",             tier: B, replica_risk: low}   # 15€ · вподобань 10 · гарячих 82%
+  - {name: "G-Star RAW",          tier: B, replica_risk: medium}   # 14€ · вподобань 8 · гарячих 64%
+  - {name: "Edwin",               tier: A, replica_risk: low}   # 20€ · вподобань 8 · гарячих 72%
+  - {name: "Nudie Jeans",         tier: A, replica_risk: low}   # 27€ · вподобань 10 · гарячих 77%
 
   # Класика і мідл
-  - {name: "Hugo Boss",           tier: A, replica_risk: high}
-  - {name: "Armani",              tier: A, replica_risk: high}
-  - {name: "Paul Smith",          tier: A, replica_risk: medium}
-  - {name: "Ted Baker",           tier: B, replica_risk: low}
-  - {name: "Ben Sherman",         tier: B, replica_risk: low}
-  - {name: "Gant",                tier: B, replica_risk: low}
-  - {name: "Scotch & Soda",       tier: B, replica_risk: low}
-  - {name: "Superdry",            tier: B, replica_risk: medium}
-  - {name: "Hackett",             tier: B, replica_risk: low}
-  - {name: "Tommy Jeans",         tier: B, replica_risk: high}
+  - {name: "Gant",                tier: B, replica_risk: low}   # 15€ · вподобань 9 · гарячих 81%
 
   # Спорт і вулиця: основний обсяг
-  - {name: "Under Armour",        tier: B, replica_risk: medium}
-  - {name: "Ellesse",             tier: B, replica_risk: low}
-  - {name: "Sergio Tacchini",     tier: B, replica_risk: low}
-  - {name: "Umbro",               tier: B, replica_risk: low}
-  - {name: "Le Coq Sportif",      tier: B, replica_risk: low}
-  - {name: "Russell Athletic",    tier: B, replica_risk: low}
-  - {name: "Lonsdale",            tier: B, replica_risk: low}
-  - {name: "Everlast",            tier: B, replica_risk: low}
-  - {name: "Hummel",              tier: B, replica_risk: low}
-  - {name: "Diadora",             tier: B, replica_risk: low}
-  - {name: "Lotto",               tier: B, replica_risk: low}
-  - {name: "Erima",               tier: B, replica_risk: low}
-  - {name: "Joma",                tier: B, replica_risk: low}
-  - {name: "Macron",              tier: B, replica_risk: low}
-  - {name: "Castore",             tier: B, replica_risk: low}
-  - {name: "Gymshark",            tier: B, replica_risk: low}
+  - {name: "Under Armour",        tier: B, replica_risk: medium}   # 18€ · вподобань 9 · гарячих 73%
+  - {name: "Ellesse",             tier: B, replica_risk: low}   # 11€ · вподобань 8 · гарячих 70%
+  - {name: "Lonsdale",            tier: B, replica_risk: low}   # 9€ · вподобань 11 · гарячих 69%
+  - {name: "Gymshark",            tier: B, replica_risk: low}   # 12€ · вподобань 9 · гарячих 73%
 
   # Взуття
-  - {name: "Dr. Martens",         tier: A, replica_risk: medium}
-  - {name: "Timberland",          tier: B, replica_risk: medium}
-  - {name: "Birkenstock",         tier: B, replica_risk: medium}
-  - {name: "Clarks",              tier: B, replica_risk: low}
-  - {name: "Veja",                tier: B, replica_risk: medium}
-  - {name: "Hoka",                tier: A, replica_risk: medium}
-  - {name: "On",                  tier: A, replica_risk: medium}
-  - {name: "Saucony",             tier: B, replica_risk: low}
-  - {name: "Karhu",               tier: B, replica_risk: low}
-  - {name: "Palladium",           tier: B, replica_risk: low}
+  - {name: "Timberland",          tier: B, replica_risk: medium}   # 16€ · вподобань 8 · гарячих 72%
+  - {name: "Hoka",                tier: A, replica_risk: medium}   # 59€ · вподобань 9 · гарячих 83%
+  - {name: "Saucony",             tier: B, replica_risk: low}   # 36€ · вподобань 9 · гарячих 75%
+  - {name: "Palladium",           tier: B, replica_risk: low}   # 28€ · вподобань 8 · гарячих 73%
 
   # Скейт і серф
-  - {name: "Thrasher",            tier: B, replica_risk: high}
-  - {name: "Santa Cruz",          tier: B, replica_risk: medium}
-  - {name: "Element",             tier: B, replica_risk: low}
-  - {name: "Volcom",              tier: B, replica_risk: low}
-  - {name: "Quiksilver",          tier: B, replica_risk: low}
-  - {name: "Billabong",           tier: B, replica_risk: low}
-  - {name: "Rip Curl",            tier: B, replica_risk: low}
-  - {name: "Obey",                tier: B, replica_risk: medium}
-  - {name: "HUF",                 tier: B, replica_risk: medium}
+  - {name: "Thrasher",            tier: B, replica_risk: high}   # 10€ · вподобань 16 · гарячих 90%
+  - {name: "Santa Cruz",          tier: B, replica_risk: medium}   # 10€ · вподобань 10 · гарячих 80%
+  - {name: "Quiksilver",          tier: B, replica_risk: low}   # 9€ · вподобань 8 · гарячих 70%
+  - {name: "Billabong",           tier: B, replica_risk: low}   # 11€ · вподобань 15 · гарячих 80%
 
   # Німецькі та скандинавські масові, яких багато на DE і PL
-  - {name: "Only & Sons",         tier: B, replica_risk: low}
-  - {name: "Jack & Jones",        tier: B, replica_risk: low}
-  - {name: "Selected Homme",      tier: B, replica_risk: low}
-  - {name: "Marc O'Polo",         tier: B, replica_risk: low}
-  - {name: "Camel Active",        tier: B, replica_risk: low}
-  - {name: "Bogner",              tier: A, replica_risk: medium}
-  - {name: "Wellensteyn",         tier: A, replica_risk: medium}
-  - {name: "Schoffel",            tier: A, replica_risk: low}

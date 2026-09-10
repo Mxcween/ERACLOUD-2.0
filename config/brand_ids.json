@@ -343,17 +343,6 @@
       "min_multiple": null
     },
     {
-      "name": "Tommy Hilfiger",
-      "brand_id": 94,
-      "vinted_title": "Tommy Hilfiger",
-      "tier": "B",
-      "replica_risk": "high",
-      "item_count": 12050621,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
       "name": "Calvin Klein",
       "brand_id": 255,
       "vinted_title": "Calvin Klein",
@@ -371,39 +360,6 @@
       "tier": "B",
       "replica_risk": "medium",
       "item_count": 4974796,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Converse",
-      "brand_id": 11445,
-      "vinted_title": "Converse",
-      "tier": "B",
-      "replica_risk": "medium",
-      "item_count": 4520826,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Fila",
-      "brand_id": 5291,
-      "vinted_title": "FILA",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 2057516,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Kappa",
-      "brand_id": 8139,
-      "vinted_title": "Kappa",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 1145826,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -563,34 +519,12 @@
       "min_multiple": null
     },
     {
-      "name": "Kenzo",
-      "brand_id": 1075,
-      "vinted_title": "Kenzo",
-      "tier": "S",
-      "replica_risk": "high",
-      "item_count": 937087,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
       "name": "Diesel",
       "brand_id": 161,
       "vinted_title": "Diesel",
       "tier": "A",
       "replica_risk": "medium",
       "item_count": 2519256,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Belstaff",
-      "brand_id": 131166,
-      "vinted_title": "Belstaff",
-      "tier": "S",
-      "replica_risk": "medium",
-      "item_count": 153058,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -604,50 +538,6 @@
       "item_count": 121131,
       "requires_authenticity_check": true,
       "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Woolrich",
-      "brand_id": 173188,
-      "vinted_title": "Woolrich",
-      "tier": "S",
-      "replica_risk": "medium",
-      "item_count": 290113,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Mackage",
-      "brand_id": 139812,
-      "vinted_title": "Mackage",
-      "tier": "S",
-      "replica_risk": "medium",
-      "item_count": 5013,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Peuterey",
-      "brand_id": 77398,
-      "vinted_title": "Peuterey",
-      "tier": "A",
-      "replica_risk": "medium",
-      "item_count": 154024,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Save The Duck",
-      "brand_id": 341007,
-      "vinted_title": "Save The Duck",
-      "tier": "A",
-      "replica_risk": "low",
-      "item_count": 61448,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
       "min_multiple": null
     },
     {
@@ -706,17 +596,6 @@
       "min_multiple": null
     },
     {
-      "name": "Berghaus",
-      "brand_id": 69298,
-      "vinted_title": "Berghaus",
-      "tier": "A",
-      "replica_risk": "low",
-      "item_count": 478306,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
       "name": "Helly Hansen",
       "brand_id": 43589,
       "vinted_title": "Helly Hansen",
@@ -750,17 +629,6 @@
       "min_multiple": null
     },
     {
-      "name": "Montane",
-      "brand_id": 76778,
-      "vinted_title": "Montane",
-      "tier": "A",
-      "replica_risk": "low",
-      "item_count": 37488,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
       "name": "Rab",
       "brand_id": 360051,
       "vinted_title": "Rab",
@@ -778,17 +646,6 @@
       "tier": "A",
       "replica_risk": "low",
       "item_count": 273369,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Didriksons",
-      "brand_id": 286823,
-      "vinted_title": "Didriksons",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 168363,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -816,28 +673,6 @@
       "min_multiple": null
     },
     {
-      "name": "Wrangler",
-      "brand_id": 259,
-      "vinted_title": "Wrangler",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 1067315,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Lee",
-      "brand_id": 63,
-      "vinted_title": "Lee",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 972101,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
       "name": "Edwin",
       "brand_id": 4471,
       "vinted_title": "Edwin",
@@ -860,133 +695,12 @@
       "min_multiple": null
     },
     {
-      "name": "Replay",
-      "brand_id": 1501,
-      "vinted_title": "Replay",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 756768,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Pepe Jeans",
-      "brand_id": 192,
-      "vinted_title": "Pepe Jeans",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 1707970,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Hugo Boss",
-      "brand_id": 120,
-      "vinted_title": "Hugo Boss",
-      "tier": "A",
-      "replica_risk": "high",
-      "item_count": 3237382,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Armani",
-      "brand_id": 5930015,
-      "vinted_title": "Armani",
-      "tier": "A",
-      "replica_risk": "high",
-      "item_count": 741427,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Paul Smith",
-      "brand_id": 10763,
-      "vinted_title": "Paul Smith",
-      "tier": "A",
-      "replica_risk": "medium",
-      "item_count": 409276,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Ted Baker",
-      "brand_id": 1219,
-      "vinted_title": "Ted Baker",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 1817772,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Ben Sherman",
-      "brand_id": 20563,
-      "vinted_title": "Ben Sherman",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 252529,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
       "name": "Gant",
       "brand_id": 6075,
       "vinted_title": "GANT",
       "tier": "B",
       "replica_risk": "low",
       "item_count": 1158669,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Scotch & Soda",
-      "brand_id": 13743,
-      "vinted_title": "Scotch & Soda",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 930035,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Superdry",
-      "brand_id": 191,
-      "vinted_title": "Superdry",
-      "tier": "B",
-      "replica_risk": "medium",
-      "item_count": 3892673,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Hackett",
-      "brand_id": 35705,
-      "vinted_title": "Hackett",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 173167,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Tommy Jeans",
-      "brand_id": 352755,
-      "vinted_title": "Tommy Jeans",
-      "tier": "B",
-      "replica_risk": "high",
-      "item_count": 1224765,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -1014,144 +728,12 @@
       "min_multiple": null
     },
     {
-      "name": "Sergio Tacchini",
-      "brand_id": 3181,
-      "vinted_title": "Sergio Tacchini",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 300644,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Umbro",
-      "brand_id": 8715,
-      "vinted_title": "Umbro",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 832985,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Le Coq Sportif",
-      "brand_id": 345,
-      "vinted_title": "Le Coq Sportif",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 601403,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Russell Athletic",
-      "brand_id": 301356,
-      "vinted_title": "Russell Athletic",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 86924,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
       "name": "Lonsdale",
       "brand_id": 2193,
       "vinted_title": "Lonsdale",
       "tier": "B",
       "replica_risk": "low",
       "item_count": 215577,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Everlast",
-      "brand_id": 2187,
-      "vinted_title": "Everlast",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 243356,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Hummel",
-      "brand_id": 7629,
-      "vinted_title": "Hummel",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 718272,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Diadora",
-      "brand_id": 46923,
-      "vinted_title": "Diadora",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 350679,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Lotto",
-      "brand_id": 13727,
-      "vinted_title": "Lotto",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 367577,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Erima",
-      "brand_id": 56654,
-      "vinted_title": "Erima",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 81215,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Joma",
-      "brand_id": 265802,
-      "vinted_title": "Joma",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 390746,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Macron",
-      "brand_id": 216888,
-      "vinted_title": "Macron",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 214666,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Castore",
-      "brand_id": 2326919,
-      "vinted_title": "Castore",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 245664,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -1168,56 +750,12 @@
       "min_multiple": null
     },
     {
-      "name": "Dr. Martens",
-      "brand_id": 309,
-      "vinted_title": "Dr. Martens",
-      "tier": "A",
-      "replica_risk": "medium",
-      "item_count": 2225170,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
       "name": "Timberland",
       "brand_id": 44,
       "vinted_title": "Timberland",
       "tier": "B",
       "replica_risk": "medium",
       "item_count": 2691201,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Birkenstock",
-      "brand_id": 3203,
-      "vinted_title": "Birkenstock",
-      "tier": "B",
-      "replica_risk": "medium",
-      "item_count": 1322187,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Clarks",
-      "brand_id": 534,
-      "vinted_title": "Clarks",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 1516342,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Veja",
-      "brand_id": 603,
-      "vinted_title": "Veja",
-      "tier": "B",
-      "replica_risk": "medium",
-      "item_count": 173643,
       "requires_authenticity_check": true,
       "is_luxury": true,
       "min_multiple": null
@@ -1234,34 +772,12 @@
       "min_multiple": null
     },
     {
-      "name": "On",
-      "brand_id": 100,
-      "vinted_title": "ONLY",
-      "tier": "A",
-      "replica_risk": "medium",
-      "item_count": 8364150,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
       "name": "Saucony",
       "brand_id": 40813,
       "vinted_title": "Saucony",
       "tier": "B",
       "replica_risk": "low",
       "item_count": 350038,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Karhu",
-      "brand_id": 304297,
-      "vinted_title": "Karhu",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 36834,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
@@ -1300,28 +816,6 @@
       "min_multiple": null
     },
     {
-      "name": "Element",
-      "brand_id": 2037,
-      "vinted_title": "Element",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 272430,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Volcom",
-      "brand_id": 66,
-      "vinted_title": "Volcom",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 389897,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
       "name": "Quiksilver",
       "brand_id": 159,
       "vinted_title": "Quiksilver",
@@ -1339,127 +833,6 @@
       "tier": "B",
       "replica_risk": "low",
       "item_count": 715339,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Rip Curl",
-      "brand_id": 291,
-      "vinted_title": "Rip Curl",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 414113,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Obey",
-      "brand_id": 2069,
-      "vinted_title": "Obey",
-      "tier": "B",
-      "replica_risk": "medium",
-      "item_count": 177074,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "HUF",
-      "brand_id": 14185,
-      "vinted_title": "HUF",
-      "tier": "B",
-      "replica_risk": "medium",
-      "item_count": 93280,
-      "requires_authenticity_check": true,
-      "is_luxury": true,
-      "min_multiple": null
-    },
-    {
-      "name": "Only & Sons",
-      "brand_id": 4694046,
-      "vinted_title": "ONLY & SONS",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 365850,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Jack & Jones",
-      "brand_id": 36955,
-      "vinted_title": "Jack & Jones",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 3688538,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Selected Homme",
-      "brand_id": 283800,
-      "vinted_title": "Selected Homme",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 203467,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Marc O'Polo",
-      "brand_id": 17251,
-      "vinted_title": "Marc O'Polo",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 834083,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Camel Active",
-      "brand_id": 44979,
-      "vinted_title": "Camel Active",
-      "tier": "B",
-      "replica_risk": "low",
-      "item_count": 83806,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Bogner",
-      "brand_id": 99868,
-      "vinted_title": "Bogner",
-      "tier": "A",
-      "replica_risk": "medium",
-      "item_count": 93439,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Wellensteyn",
-      "brand_id": 170010,
-      "vinted_title": "Wellensteyn",
-      "tier": "A",
-      "replica_risk": "medium",
-      "item_count": 190072,
-      "requires_authenticity_check": false,
-      "is_luxury": false,
-      "min_multiple": null
-    },
-    {
-      "name": "Schoffel",
-      "brand_id": 142856,
-      "vinted_title": "Schöffel",
-      "tier": "A",
-      "replica_risk": "low",
-      "item_count": 78186,
       "requires_authenticity_check": false,
       "is_luxury": false,
       "min_multiple": null
