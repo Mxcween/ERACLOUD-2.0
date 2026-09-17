@@ -192,6 +192,13 @@ class Sniper:
         probe_catalog = self.settings.enabled_categories[0].id
 
         for market in self.settings.enabled_markets:
+            # Мапа станів створюється ПЕРШОЮ: клієнт читає сторінку, а там
+            # мітки полів локалізовані, тому стан і бренд упізнаються за
+            # значеннями. Мапа вже при створенні знає запасні назви, тож
+            # чекати на опитування не треба.
+            status_map = StatusMap(market.code, buckets)
+            self.status_maps[market.code] = status_map
+
             client = VintedClient(
                 market,
                 self.limiters.setdefault(
@@ -200,13 +207,13 @@ class Sniper:
                 ),
                 timeout=float((self.settings.polling or {}).get("request_timeout", 20.0)),
                 max_retries=int((self.settings.polling or {}).get("max_retries", 3)),
+                known_conditions=status_map.titles,
+                is_known_brand=lambda title: self.registry.by_title(title) is not None,
             )
             await client.ensure_session()
             self.clients[market.code] = client
 
-            status_map = StatusMap(market.code, buckets)
             await status_map.resolve(client, accepted, probe_catalog)
-            self.status_maps[market.code] = status_map
 
         await self.fx.refresh()
 
@@ -576,6 +583,10 @@ class Sniper:
             # нове), а вік застосовуємо тільки щоб не вивалити backlog
             # після простою. У глибокому проході вік не фільтруємо взагалі -
             # ми туди саме за старими лотами й ходимо.
+            # Вік лота теж пропав разом з API: розмітка не несе часу
+            # завантаження фото, тому age_seconds завжди None і ця перевірка
+            # нічого не відсікає. Дедуплікація (не бачили = нове) лишається
+            # головним захистом від залпу після простою.
             if backlog_mode and not deep:
                 age = listing.age_seconds
                 if age is not None and age > self.max_age:
@@ -829,7 +840,15 @@ class Sniper:
             await self._dispatch(deal, brand_id, now_ts)
 
     def _seller_budget_left(self, seller_id: int | None) -> bool:
-        """Скільки лотів від одного продавця пускаємо за годину."""
+        """Скільки лотів від одного продавця пускаємо за годину.
+
+        УВАГА: з переходом на сторінку каталогу цей ліміт фактично не діє.
+        Старе API віддавало id продавця, розмітка сторінки - ні, тому
+        seller_id завжди None і перевірка одразу пропускає. Захист від
+        приманок (пʼять однакових пар у різних розмірах з одного акаунта)
+        зараз тримається лише на порогах вигоди. Щоб повернути його, треба
+        читати сторінку самого лота, а це ще один запит на знахідку.
+        """
         limit = int((self.settings.alerts or {}).get("max_alerts_per_seller_per_hour", 0) or 0)
         if limit <= 0 or seller_id is None:
             return True

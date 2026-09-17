@@ -34,9 +34,14 @@ ALL_STATUS_IDS = [6, 1, 2, 3, 4, 7]
 # значення, щойно спрацює; словник потрібен рівно для того, щоб провал
 # опитування коштував неточності, а не сліпоти.
 FALLBACK_TITLES: dict[int, tuple[str, ...]] = {
-    6: ("Nowy z metką", "Neu mit Etikett", "New with tags", "Neuf avec étiquette",
+    # "Neu, mit Etikett" і просто "Neu" - реальні рядки з vinted.de, зняті
+    # зі сторінки. Мій попередній список мав "Neu mit Etikett" без коми, і
+    # через це стан губився у чверті німецьких лотів.
+    6: ("Nowy z metką", "Neu, mit Etikett", "Neu mit Etikett", "New with tags",
+        "Neuf avec étiquette",
         "Nuovo con cartellino", "Nuevo con etiquetas", "Nieuw met prijskaartje"),
-    1: ("Nowy bez metki", "Neu ohne Etikett", "New without tags", "Neuf sans étiquette",
+    1: ("Nowy bez metki", "Neu, ohne Etikett", "Neu ohne Etikett", "Neu",
+        "New without tags", "Neuf sans étiquette",
         "Nuovo senza cartellino", "Nuevo sin etiquetas", "Nieuw zonder prijskaartje"),
     2: ("Bardzo dobry", "Sehr gut", "Very good", "Très bon état",
         "Ottime condizioni", "Muy bueno", "Zeer goed"),
@@ -92,6 +97,12 @@ class StatusMap:
             self.market_code,
             {t: i for t, i in sorted(self._title_to_id.items(), key=lambda kv: kv[1])},
         )
+
+    @property
+    def titles(self) -> tuple[str, ...]:
+        """Усі відомі назви станів. Потрібні розбору сторінки каталогу:
+        мітки полів там локалізовані, тому стан упізнається за значенням."""
+        return tuple(self._title_to_id)
 
     @property
     def probed(self) -> bool:

@@ -18,6 +18,7 @@ from typing import Any
 import httpx
 
 from ..models import Listing, utc_now_ts
+from .catalog_page import parse_catalog
 from ..settings import Market
 from .ratelimit import RateLimiter
 
@@ -49,10 +50,17 @@ class VintedClient:
         *,
         timeout: float = 20.0,
         max_retries: int = 3,
+        known_conditions: tuple[str, ...] = (),
+        is_known_brand=None,
     ) -> None:
         self.market = market
         self.limiter = limiter
         self.max_retries = max_retries
+        # Потрібні розбору сторінки: мітки полів локалізовані, тому поля
+        # впізнаються за значеннями - стан за списком станів, бренд за
+        # реєстром. Див. catalog_page._classify.
+        self.known_conditions = known_conditions
+        self.is_known_brand = is_known_brand or (lambda _: False)
         self._user_agent = random.choice(USER_AGENTS)
         self._client = httpx.AsyncClient(
             base_url=market.base_url,
@@ -206,6 +214,24 @@ class VintedClient:
         return max(0.0, self._blocked_until - time.monotonic())
 
     async def _get_json(self, path: str, params: list[tuple[str, Any]]) -> dict[str, Any]:
+        resp = await self._request(
+            path, params, accept="application/json, text/plain, */*"
+        )
+        try:
+            return resp.json()
+        except ValueError as exc:
+            raise VintedError(
+                f"{self.market.code}: відповідь не JSON ({len(resp.content)} байт)"
+            ) from exc
+
+    async def _get_page(self, path: str, params: list[tuple[str, Any]]) -> str:
+        """Сторінка каталогу як текст. Той самий шлях відмов, що й у JSON."""
+        resp = await self._request(path, params, accept="text/html")
+        return resp.text
+
+    async def _request(
+        self, path: str, params: list[tuple[str, Any]], *, accept: str
+    ) -> httpx.Response:
         if self.blocked_for > 0:
             self.stats["skipped_while_blocked"] += 1
             raise VintedBlocked(
@@ -221,9 +247,8 @@ class VintedClient:
                     path,
                     params=params,
                     headers={
-                        "Accept": "application/json, text/plain, */*",
+                        "Accept": accept,
                         "Referer": f"{self.market.base_url}/catalog",
-                        "X-Requested-With": "XMLHttpRequest",
                     },
                 )
             except httpx.HTTPError as exc:
@@ -238,13 +263,7 @@ class VintedClient:
                 self.limiter.relax()
                 self.stats["ok"] += 1
                 self._block_strikes = 0
-                try:
-                    return resp.json()
-                except ValueError as exc:
-                    last_error = exc
-                    log.warning("[%s] відповідь не JSON, довжина %s", self.market.code, len(resp.content))
-                    await asyncio.sleep(2 ** attempt)
-                    continue
+                return resp
 
             if resp.status_code in (401, 419):
                 log.info("[%s] токен протух, піднімаю сесію заново", self.market.code)
@@ -292,6 +311,10 @@ class VintedClient:
                 await asyncio.sleep(2 ** attempt)
                 continue
 
+            # Рахуємо і цей шлях. Саме тут тиждень безслідно гинули 404 після
+            # того, як Vinted вимкнув /api/v2/catalog/items: код був
+            # "несподіваний", лічильника не мав, і /health показував нулі.
+            self.stats[str(resp.status_code)] += 1
             raise VintedError(f"{self.market.code}: несподіваний HTTP {resp.status_code}")
 
         raise VintedError(f"{self.market.code}: не вдалось після {self.max_retries} спроб: {last_error}")
@@ -316,11 +339,12 @@ class VintedClient:
         Другий режим потрібен, бо лот, який висить пів дня, зі стрічки
         новинок уже випав, а з дешевого хвоста нікуди не дівається.
         """
+        # Сторінка чекає catalog[] замість catalog_ids[] і не знає per_page:
+        # вона завжди віддає 96 лотів, як і віддавало API.
         params: list[tuple[str, Any]] = [
             ("page", page),
-            ("per_page", per_page),
             ("order", order),
-            ("catalog_ids[]", catalog_id),
+            ("catalog[]", catalog_id),
         ]
         for bid in brand_ids or []:
             params.append(("brand_ids[]", bid))
@@ -330,13 +354,18 @@ class VintedClient:
             params.append(("price_to", f"{price_to:.2f}"))
             params.append(("currency", self.market.currency))
 
-        payload = await self._get_json("/api/v2/catalog/items", params)
-        server_ts = int((payload.get("pagination") or {}).get("time") or utc_now_ts())
-        items = [
-            self._parse_item(raw, catalog_id, server_ts)
-            for raw in payload.get("items") or []
-        ]
-        return [i for i in items if i is not None], server_ts
+        page = await self._get_page("/catalog", params)
+        server_ts = utc_now_ts()
+        return parse_catalog(
+            page,
+            market_code=self.market.code,
+            base_url=self.market.base_url,
+            catalog_id=catalog_id,
+            server_ts=server_ts,
+            currency=self.market.currency,
+            known_conditions=self.known_conditions,
+            is_known_brand=self.is_known_brand,
+        ), server_ts
 
     async def search_brands(self, keyword: str) -> list[dict[str, Any]]:
         payload = await self._get_json("/api/v2/brands", [("keyword", keyword)])
