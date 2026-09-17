@@ -1,0 +1,419 @@
+# Категорії Vinted. Опитуються ТОЧНІ підкатегорії, а не батьківські.
+#
+# Це принципово. Батьківська категорія взуття тягнула сандалі й шльопанці,
+# батьківський спортивний одяг тягнув шорти та спортивні аксесуари. Кожен раз
+# доводилось вгадувати сміття за назвою і кожен раз знаходилась мова, якої в
+# списку немає. Точні підкатегорії прибирають цілі класи сміття структурно.
+#
+# ceiling_eur     - максимальна ціна купівлі, запобіжник від "брендової" речі
+#                   Підняті приблизно в півтора раза. Стеля потрібна, щоб не
+#                   купити дорого річ із випадково завищеною медіаною, але
+#                   від цього насправді захищають множник і поріг профіту, а
+#                   низька стеля заразом викидала найжирніше: заміряно, що
+#                   "дорожче за стелю" було другою за частотою причиною
+#                   відмови на вході. Куртка за 150 євро з продажем за 300 -
+#                   це +150 у кишеню, і відкидати її через стелю в 130 було
+#                   найдорожчою обережністю в конфізі.
+#                   без запасу на перепродаж.
+# baseline_eur    - медіана цін на vinted.de, виміряна по кожній підкатегорії
+#                   окремо (по 192 лоти на категорію). Працює поки бот не
+#                   назбирав власної статистики по конкретному бренду.
+# min_profit_eur  - профіт БЕЗ доставки: продаж мінус собівартість. Доставка
+#                   не бере участі у відборі взагалі, вона йде довідковим
+#                   рядком в алерті, бо на Vinted платиться за замовлення,
+#                   а не за річ. Поріг свій для кожної категорії: 15 євро з
+#                   куртки нормально, з футболки недосяжно.
+
+defaults:
+  min_price_eur: 1.0
+
+categories:
+  # --- верх ---
+  - id: 77
+    key: tops_tshirts
+    name: Футболки
+    ceiling_eur: 45   # правило власника: футболки по 50 євро бути не повинно
+    weight_kg: 0.3
+    baseline_eur: {S: 40, A: 17, B: 8}
+    min_profit_eur: 6
+
+  - id: 5492
+    key: polo
+    name: Поло
+    ceiling_eur: 65
+    weight_kg: 0.35
+    baseline_eur: {S: 55, A: 25, B: 12}
+    min_profit_eur: 7
+
+  - id: 79
+    key: knitwear_hoodies
+    name: Худі, светри, світшоти
+    ceiling_eur: 110
+    weight_kg: 0.7
+    baseline_eur: {S: 70, A: 35, B: 15}
+    min_profit_eur: 7
+
+  # --- верхній одяг ---
+  - id: 1206
+    key: outerwear
+    name: Куртки та верхній одяг
+    ceiling_eur: 300
+    weight_kg: 1.2
+    baseline_eur: {S: 215, A: 70, B: 35}
+    min_profit_eur: 13
+
+  # --- низ ---
+  - id: 257
+    key: jeans
+    name: Джинси
+    ceiling_eur: 100
+    weight_kg: 0.8
+    baseline_eur: {S: 60, A: 30, B: 24}
+    min_profit_eur: 8
+
+  - id: 34
+    key: trousers
+    name: Штани
+    ceiling_eur: 95
+    weight_kg: 0.7
+    baseline_eur: {S: 55, A: 30, B: 20}
+    min_profit_eur: 7
+
+  # --- спортивне: точні підкатегорії, БЕЗ шортів і аксесуарів ---
+  # Тут живе основний обсяг. Раніше воно все відсіювалось як "не грааль", але
+  # спортивне і є найходовішим товаром: чиста кофта adidas продається швидше
+  # за архівну рідкість, просто дешевше. Мотлох ловимо станом і зором, а не
+  # вимкненою категорією.
+  - id: 582
+    key: tracksuits
+    name: Спортивні костюми
+    ceiling_eur: 130
+    weight_kg: 1.0
+    baseline_eur: {S: 110, A: 60, B: 40}
+    min_profit_eur: 13
+
+  - id: 583
+    key: track_pants
+    name: Спортивні штани
+    ceiling_eur: 85
+    weight_kg: 0.6
+    baseline_eur: {S: 55, A: 30, B: 20}
+    min_profit_eur: 7
+
+  - id: 581
+    key: track_jackets
+    name: Олімпійки та вітрівки
+    ceiling_eur: 95
+    weight_kg: 0.7
+    baseline_eur: {S: 55, A: 30, B: 20}
+    min_profit_eur: 7
+
+  # --- взуття: лише кросівки ---
+  - id: 1242
+    key: shoes
+    name: Кросівки
+    ceiling_eur: 200
+    weight_kg: 1.1
+    baseline_eur: {S: 100, A: 55, B: 46}
+    min_profit_eur: 16
+
+  # Вимкнені навмисно. Аксесуари давали ремені, футляри та кепки; шорти й
+  # спортивні аксесуари прибрані тим, що ми не опитуємо батьківську 30.
+  - id: 82
+    key: accessories
+    name: Сумки та аксесуари
+    enabled: false
+    ceiling_eur: 95
+    weight_kg: 0.5
+    baseline_eur: {S: 45, A: 21, B: 13}
+    min_profit_eur: 8
+
+# Стани речі за версією Vinted. Id перевірені емпірично на vinted.pl:
+#   6 = нове з биркою, 1 = нове без бирки, 2 = дуже добре,
+#   3 = добре, 4 = задовільне, 7 = несправне
+conditions:
+  # "Добре" (3) повернуто. Прибирали його як грубий захист від затасканих
+  # речей, але це рубало третину всієї пропозиції заради проблеми, яку тепер
+  # видно на фото: зір ставить стану оцінку і сам відкидає плями, катишки й
+  # витерті манжети. Фільтрувати за галочкою продавця, коли можеш подивитись
+  # на саму річ, - це втрачати нормальні лоти наосліп.
+  accepted_ids: [6, 1, 2, 3]
+
+  # Стан можна звужувати для окремих категорій. Для взуття "добре" означає
+  # затерту підошву і брудний верх: таке не перепродається, хоч бренд і
+  # правильний. Для одягу "добре" цілком робочий стан.
+  accepted_ids_by_category:
+    shoes: [6, 1, 2]
+  buckets:
+    new: [6, 1]
+    very_good: [2]
+    good: [3]
+  # Наскільки стан впливає на ціну перепродажу відносно "дуже доброго"
+  resale_factor:
+    new: 1.15
+    very_good: 1.0
+    good: 0.82
+
+# Розміри. Порівняння нечутливе до регістру і пробілів. Для одягу дивимось
+# на початок рядка розміру, бо Vinted пише "M / 38 / 10".
+sizes:
+  # Заміряно на живому потоці: розмір - найчастіша причина, чому лот навіть
+  # не стає знахідкою. XXL відсіювався 27 разів, XS 24 - разом більше, ніж
+  # усі інші причини вкупі. Додані обидва.
+  #
+  # Чесна ціна: XS і XXL перепродаються повільніше за M і L, це крайні
+  # розміри. Але ми не носимо, а перепродаємо, і зайвий тиждень очікування
+  # дешевший за вдвічі вужчий потік. Якщо набридне - прибери їх звідси.
+  # XXXL і "Universal" навмисно не додані: перше майже не продається, друге
+  # це переважно аксесуари, а не одяг.
+  clothing: [XS, S, M, L, XL, XXL]
+  # Штани Vinted пише талією, а не буквами: "W32 | DE 48", "46 | W30", "38".
+  # Буквений фільтр для них не працює взагалі, тому в цих категоріях
+  # додатково приймаємо талію. Межі розсунуті за виміряним: W28-29 і DE 44
+  # відсікались 17 разів за пʼять циклів, а це звичайні чоловічі розміри,
+  # не край сітки.
+  # Розміри-заглушки: продавець не вказав розмір або вибрав "інше". Це не
+  # "не той розмір", а "розмір невідомий", і відсікати за це означає
+  # втрачати лоти наосліп - заміряно 46 відмов за 25 хвилин. У взутті
+  # правило НЕ діє: там відсутність числа означає, що це не пара, а шнурки
+  # чи коробка, і на цьому тримається окремий запобіжник.
+  one_size_labels:
+    - Einheitsgröße
+    - Einheitsgroesse
+    - Sonstige
+    - Universal
+    - Uniwersalny
+    - Uniwersalne
+    - One size
+    - Onesize
+    - Inne
+    - Inny
+    - Inna
+    - Andere
+    - Anderes
+    - Sonstiges
+    - Divers
+    - Autres
+    - Altri
+    - Altra
+    - Otra
+    - Otros
+    - Egyéb
+    - Muu
+    - Jiné
+    - Autre
+    - Altro
+    - Otro
+    - Talla única
+  waist_categories: [jeans, trousers, track_pants]
+  waist_in_min: 28
+  waist_in_max: 38
+  waist_eu_min: 44
+  waist_eu_max: 56
+  shoes_eu_min: 39
+  shoes_eu_max: 47
+  # Аксесуари здебільшого без розміру, тому їх не фільтруємо
+  skip_size_check_categories: [accessories]
+
+# Сміття, яке продають під брендовою назвою і в брендовій категорії.
+# Нашивка CP Company лежить у "верхньому одязі", шнурки BAPE у "взутті", і
+# бот оцінював би їх як куртку та кросівки відповідно. Стеля ціни тут не
+# рятує: нашивка за 14 євро спокійно проходить під стелю куртки в 55.
+#
+# Слова шукаються цілими (не частинами інших слів), без урахування регістру
+# та діакритики. Мови ті, що реально трапляються в польській і німецькій
+# стрічках. Такі лоти відсікаються повністю.
+title_blocklist:
+  # нашивки та наліпки
+  - patch
+  - patches
+  - naszywka
+  - naszywki
+  - aufnaher
+  - nasivka
+  - toppa
+  - parche
+  - ecusson
+  - naklejka
+  - sticker
+  - aufkleber
+  - adesivo
+  # шнурки
+  - sznurowki
+  - sznurowka
+  - laces
+  - shoelaces
+  - lacet
+  - lacets
+  - cordones
+  - cipofuzo
+  - snorebander
+  - skosnoren
+  - schnursenkel
+  - lacci
+  - veters
+  - tkanicky
+  # тапки, шльопанці, сандалі: дешеві, важко продати, забивають стрічку
+  - klapki
+  - claquette
+  - claquettes
+  - chanclas
+  - teenslippers
+  - kapcie
+  - pantofle
+  - papucs
+  - slides
+  - slide
+  - adilette
+  - adilettes
+  - adiletten
+  - adilete
+  - badelatschen
+  - badeschuhe
+  - hausschuhe
+  - pantoffeln
+  - ciabatte
+  - slippers
+  - slipper
+  - sandals
+  - sandalen
+  - sandaly
+  - sandales
+  - crocs
+  - flip-flops
+  - "flip flops"
+  # коробки, бирки, пакети без самої речі
+  - pudelko
+  - pudelka
+  - karton
+  - "box only"
+  - "empty box"
+  - "nur karton"
+  - metka
+  - metki
+  - hangtag
+  - paragon
+  - "dust bag"
+
+# Слова, що натякають на репліку. НЕ відсікаємо, лише додаємо попередження
+# в алерт: продавці часто пишуть їх у запереченні ("nie fake", "no replica",
+# "oryginal nie podrobka"), і жорсткий фільтр викидав би нормальні лоти.
+title_warn_words:
+  - replika
+  - replica
+  - podrobka
+  - podrobki
+  - fake
+  - inspired
+  - "1:1"
+  - aaa
+
+# Кепки як тема мертві: дешеві, море підробок, ніхто не бере. Виняток лише
+# для люксу, там кепка коштує як куртка. Слово в назві відсікає лот, якщо
+# бренд НЕ зі списку brands нижче.
+title_blocklist_unless_brand:
+  brands:
+    - Gucci
+    - Louis Vuitton
+  words:
+    - cap
+    - caps
+    - kepka
+    - czapka
+    - czapki
+    - kappe
+    - muetze
+    - mutze
+    - snapback
+    - trucker
+    - casquette
+    - cappello
+    - gorra
+    - beanie
+    - bucket hat
+    - hat
+    - hats
+
+# Слова, які відсікають лот ЛИШЕ у своїй категорії.
+#
+# "running" не можна різати глобально: вітрівка "Coupe vent Running New
+# Balance" це нормальний лот верхнього одягу. А от бігові кросівки масових
+# брендів не перепродаються навіть у доброму стані.
+title_blocklist_by_category:
+  shoes:
+    - running
+    - runningschuhe
+    - laufschuhe
+    - laufschuh
+    - biegania
+    - biegowe
+    - hardloopschoenen
+    - "chaussures de course"
+    - "scarpe da running"
+    - trailrunning
+    - "trail running"
+    - futocipo
+    # Бюджетні бігові та тренувальні моделі. Причина окрема від слова
+    # "running": медіана рахується по зв'язці бренд+категорія, тому дорогі
+    # Air Max та Dunk тягнуть її вгору, і будь-які дешеві Nike через це
+    # виглядають вигідними. Ці моделі не перепродаються ніколи.
+    - revolution
+    - downshifter
+    - flex experience
+    - flex contact
+    - todos
+    - runallday
+    - "run all day"
+    - star runner
+    - varsity compete
+    - city rep
+    - defy
+    - winflo
+    - renew
+    - quest
+    - explore strada
+    - "in-season"
+    - duramo
+    - runfalcon
+    - galaxy
+    - lite racer
+    - coreracer
+    - questar
+    - energyfalcon
+    - fluidflow
+    - ultimashow
+    - puremotion
+    - anzarun
+    - softride
+    - retaliate
+    - disperse
+    - twitch
+    - patriot
+    - contend
+    - excite
+    - jolt
+    - versablast
+    - stormer
+    - flexagon
+    - energylux
+    # Футбольні бутси: вузький розмірний ряд, швидко вбиваються, не перепродаються
+    - korki
+    - "buty pilkarskie"
+    - fussballschuhe
+    - fusballschuhe
+    - "chaussures de foot"
+    - crampons
+    - scarpini
+    - "scarpe da calcio"
+    - voetbalschoenen
+    - stoplis
+    - futballcipo
+    - cleats
+    - "football boots"
+    - mercurial
+    - superfly
+    - tiempo
+    - phantom
+    - predator
+    - copa
+    - morelia
