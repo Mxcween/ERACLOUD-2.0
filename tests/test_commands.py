@@ -91,3 +91,82 @@ class TestWatchdog:
     def test_the_idle_floor_is_never_zero(self):
         """Нуль тут означав би гарячий цикл на кожній миттєвій помилці."""
         assert COMMAND_MIN_IDLE > 0
+
+
+class TestStayingAwake:
+    """Безкоштовний хостинг присипляє сервіс без вхідних запитів.
+
+    Фонова робота для лічильника простою не рахується, тому бот може
+    працювати на повну і все одно заснути. Ззовні це і є "затихає
+    моментами". Самопінг скидає цей лічильник.
+    """
+
+    @pytest.mark.asyncio
+    async def test_without_a_public_url_it_simply_returns(self, monkeypatch):
+        monkeypatch.delenv("RENDER_EXTERNAL_URL", raising=False)
+        sniper = object.__new__(Sniper)
+        await asyncio.wait_for(sniper.stay_awake_forever(), timeout=1.0)
+
+    @pytest.mark.asyncio
+    async def test_it_pings_its_own_health_endpoint(self, monkeypatch):
+        import httpx
+
+        import vintsniper.runner as runner
+
+        monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://bot.example.com/")
+        monkeypatch.setattr(runner, "SELF_PING_SECONDS", 0.01)
+        called: list[str] = []
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, url):
+                called.append(url)
+                return httpx.Response(200)
+
+        monkeypatch.setattr(runner.httpx, "AsyncClient", lambda **kw: FakeClient())
+
+        sniper = object.__new__(Sniper)
+        task = asyncio.create_task(sniper.stay_awake_forever())
+        await asyncio.sleep(0.1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert called, "жодного самопінгу"
+        assert called[0] == "https://bot.example.com/health"
+
+    @pytest.mark.asyncio
+    async def test_a_failed_ping_does_not_kill_the_loop(self, monkeypatch):
+        import vintsniper.runner as runner
+
+        monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://bot.example.com")
+        monkeypatch.setattr(runner, "SELF_PING_SECONDS", 0.01)
+        tries = 0
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, url):
+                nonlocal tries
+                tries += 1
+                raise RuntimeError("мережа впала")
+
+        monkeypatch.setattr(runner.httpx, "AsyncClient", lambda **kw: FakeClient())
+
+        sniper = object.__new__(Sniper)
+        task = asyncio.create_task(sniper.stay_awake_forever())
+        await asyncio.sleep(0.1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert tries > 1, "цикл помер від першої ж помилки"

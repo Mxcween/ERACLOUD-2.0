@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from collections import Counter
 from contextlib import suppress
@@ -66,6 +67,10 @@ COMMAND_PASS_GRACE = 45.0
 # Нижня межа паузи між проходами. Захист від гарячого циклу, коли прохід
 # падає миттєво: без неї кожен оберт писав би трейсбек, і бот заклинило б.
 COMMAND_MIN_IDLE = 0.05
+# Як часто бот стукає у власну адресу, щоб хостинг не приспав процес.
+# Render рахує простій по ВХІДНИХ запитах і вимикає сервіс після 15 хвилин,
+# тому запас тут навмисно великий.
+SELF_PING_SECONDS = 600.0
 
 
 class Sniper:
@@ -968,6 +973,34 @@ class Sniper:
             idle = self._command_idle - (time.monotonic() - started)
             await asyncio.sleep(max(COMMAND_MIN_IDLE, idle))
 
+    async def stay_awake_forever(self) -> None:
+        """Пінгує власну адресу, щоб хостинг не приспав процес.
+
+        Безкоштовний Render зупиняє сервіс після 15 хвилин без ВХІДНИХ
+        запитів. Фонова робота для нього не рахується: бот може працювати
+        на повну, і все одно засне. Ззовні це виглядає рівно так, як
+        скаржився власник, - "затихає моментами": ніхто не відкривав
+        сторінку, сервіс заснув, наступний випадковий запит його розбудив.
+        Заразом кожне таке пробудження стирає книгу цін, бо диска немає.
+        У README це закрито зовнішнім пінгером, але вимагати ручного кроку
+        заради того, щоб бот просто не вимикався, - погана угода.
+        Запит до власної публічної адреси приходить як вхідний і лічильник
+        простою скидає.
+        """
+        url = (os.getenv("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
+        if not url:
+            log.info("RENDER_EXTERNAL_URL не задано, самопінг не потрібен")
+            return
+        target = f"{url}/health"
+        log.info("тримаю себе в тонусі: %s кожні %.0f хв", target, SELF_PING_SECONDS / 60)
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            while True:
+                await asyncio.sleep(SELF_PING_SECONDS)
+                try:
+                    await client.get(target)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("самопінг не пройшов: %s", exc)
+
     async def _command_pass(self) -> None:
         """Один прохід: прочитати команди й досилати те, що чекало на чат."""
         await self._handle_commands(long_poll=COMMAND_LONG_POLL_SECONDS)
@@ -1216,6 +1249,7 @@ async def main(settings: Settings) -> None:
         await sniper.setup()
         tasks.append(asyncio.create_task(sniper.listen_commands()))
         tasks.append(asyncio.create_task(sniper.deliver_forever()))
+        tasks.append(asyncio.create_task(sniper.stay_awake_forever()))
         if studio is not None:
             tasks.append(asyncio.create_task(studio.run_forever()))
         await sniper.run_forever()
