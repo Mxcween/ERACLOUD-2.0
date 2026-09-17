@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from vintsniper.settings import Market
-from vintsniper.vinted.client import VintedBlocked, VintedClient
+from vintsniper.vinted.client import USER_AGENTS, VintedBlocked, VintedClient
 from vintsniper.vinted.ratelimit import RateLimiter
 
 MARKET = Market(code="PL", host="www.vinted.pl", currency="PLN", locale="pl", shipping_eur=3.5)
@@ -146,22 +146,30 @@ class TestRefusalKind:
         assert homepage_hits == 1, "429 не має піднімати сесію заново"
 
     @pytest.mark.asyncio
-    async def test_forbidden_rotates_the_fingerprint(self, no_sleep):
-        homepage_hits = 0
+    async def test_forbidden_rotates_the_fingerprint_and_backs_off(self, no_sleep):
+        """На 403 відбиток міняємо, але далі не стукаємо.
+
+        Раніше тут перевірялось, що сесія піднімається заново - тобто що бот
+        одразу пробує ще раз з новим відбитком. За тиждень живої роботи стало
+        видно, чим це закінчується: 36578 відмов на піднятті сесії. Міняти
+        відбиток правильно, продовжувати одразу - ні.
+        """
+        user_agents = set()
 
         def handler(request: httpx.Request) -> httpx.Response:
-            nonlocal homepage_hits
+            user_agents.add(request.headers.get("user-agent"))
             if request.url.path == "/":
-                homepage_hits += 1
                 return httpx.Response(200, text="<html></html>")
             return httpx.Response(403, text="no")
 
         client = build(handler)
+        first = client._user_agent
         with pytest.raises(VintedBlocked):
             await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
         await client.close()
 
-        assert homepage_hits > 1, "на 403 відбиток мав змінитись"
+        assert client.blocked_for > 0, "після 403 ринок має бути на паузі"
+        assert client._user_agent != first or len(USER_AGENTS) == 1
 
 
 class TestCategoryRotation:
@@ -228,3 +236,130 @@ class TestPenaltyCeiling:
             lim.relax()
         assert lim.penalty < peak
         assert lim.penalty >= 1.0
+
+
+class TestForbiddenBreaker:
+    """403 - це блок адреси, і довбити далі означає тримати його зведеним.
+
+    Заміряно на живому боті за тиждень роботи: 36578 відмов на піднятті
+    сесії проти 16351 успішного читання. Пауза була 6 секунд - я підібрав її
+    під 429 ("чекати безглуздо, треба міняти відбиток") і застосував до обох
+    кодів, що для 403 рівно навпаки.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_forbidden_homepage_stops_the_market(self, no_sleep):
+        hits = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal hits
+            hits += 1
+            return httpx.Response(403, text="no")
+
+        client = build(handler)
+        with pytest.raises(VintedBlocked):
+            await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+        assert client.blocked_for > 0, "запобіжник не звівся"
+
+        before = hits
+        with pytest.raises(VintedBlocked):
+            await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+        await client.close()
+        assert hits == before, "під блоком не має бути жодного запиту"
+
+    @pytest.mark.asyncio
+    async def test_each_block_in_a_row_backs_off_further(self, no_sleep):
+        client = build(lambda request: httpx.Response(403, text="no"))
+        pauses = []
+        for _ in range(3):
+            client._blocked_until = 0.0        # імітуємо, що пауза вийшла
+            with pytest.raises(VintedBlocked):
+                await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+            pauses.append(client.blocked_for)
+        await client.close()
+        assert pauses[0] < pauses[1] < pauses[2], pauses
+        assert pauses[-1] <= 1800
+
+    @pytest.mark.asyncio
+    async def test_a_success_clears_the_strikes(self, no_sleep):
+        payload = {"items": [], "pagination": {"total_entries": 0, "time": 1700000000}}
+        state = {"forbid": True}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/":
+                return httpx.Response(200, text="<html></html>")
+            if state["forbid"]:
+                return httpx.Response(403, text="no")
+            return httpx.Response(200, json=payload)
+
+        client = build(handler)
+        with pytest.raises(VintedBlocked):
+            await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+        assert client._block_strikes == 1
+
+        state["forbid"] = False
+        client._blocked_until = 0.0
+        await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+        await client.close()
+        assert client._block_strikes == 0, "успіх мав зняти лічильник"
+
+    @pytest.mark.asyncio
+    async def test_rate_limiting_does_not_trip_the_breaker(self, no_sleep):
+        """429 не має зупиняти ринок: це темп, а не підозра."""
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/":
+                return httpx.Response(200, text="<html></html>")
+            return httpx.Response(429, text="slow")
+
+        client = build(handler)
+        with pytest.raises(VintedBlocked):
+            await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+        await client.close()
+        assert client.blocked_for == 0
+
+
+class TestFailuresAreVisible:
+    """Провал підняття сесії має лишати слід.
+
+    Живий бот тиждень крутив порожні цикли: 4 оберти за 6 хвилин, жодного
+    запиту, /health показував status "ok", last_error "None" і всі лічильники
+    нерухомими. Кожен запит помирав у ensure_session, де не було лічильника
+    ні на мережеву помилку, ні на несподіваний код.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_network_failure_is_counted(self, no_sleep):
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("мережа впала")
+
+        client = build(handler)
+        with pytest.raises(VintedBlocked):
+            await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+        await client.close()
+
+        assert client.stats["bootstrap_network"] > 0
+        assert client.stats["bootstrap_gave_up"] == 1
+
+    @pytest.mark.asyncio
+    async def test_an_unexpected_status_is_counted(self, no_sleep):
+        client = build(lambda request: httpx.Response(503, text="maintenance"))
+        with pytest.raises(VintedBlocked):
+            await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+        await client.close()
+
+        assert client.stats["bootstrap_503"] > 0, dict(client.stats)
+        assert client.stats["bootstrap_gave_up"] == 1
+
+    @pytest.mark.asyncio
+    async def test_a_healthy_bootstrap_is_counted_too(self, no_sleep):
+        payload = {"items": [], "pagination": {"total_entries": 0, "time": 1700000000}}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/":
+                return httpx.Response(200, text="<html></html>")
+            return httpx.Response(200, json=payload)
+
+        client = build(handler)
+        await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
+        await client.close()
+        assert client.stats["bootstrap_ok"] == 1

@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import time
 from collections import Counter
 from typing import Any
 
@@ -67,6 +68,9 @@ class VintedClient:
         # ринку. Тепер видно, відмовляє Vinted чи справді нема лотів.
         self.stats: Counter[str] = Counter()
         self.last_status: int | None = None
+        # Запобіжник на 403. Поки він зведений, ринок не чіпаємо взагалі.
+        self._blocked_until = 0.0
+        self._block_strikes = 0
 
     def _base_headers(self) -> dict[str, str]:
         return {
@@ -107,6 +111,11 @@ class VintedClient:
                 try:
                     resp = await self._client.get("/", headers=html_headers)
                 except httpx.HTTPError as exc:
+                    # Лічильник тут обов'язковий. Без нього провал підняття
+                    # сесії не лишав узагалі нічого: ні в /health, ні в
+                    # last_error, - і бот тиждень крутив порожні цикли з
+                    # усіма нулями, бо кожен запит помирав саме тут.
+                    self.stats["bootstrap_network"] += 1
                     log.warning(
                         "[%s] головна не відкрилась (%s/%s): %s",
                         self.market.code, attempt, self.max_retries, exc,
@@ -115,6 +124,7 @@ class VintedClient:
                     continue
 
                 if resp.status_code == 200:
+                    self.stats["bootstrap_ok"] += 1
                     names = set(self._client.cookies.keys())
                     if "access_token_web" not in names:
                         log.warning(
@@ -127,30 +137,42 @@ class VintedClient:
                     self._bootstrapped = True
                     return
 
-                if resp.status_code in (403, 429):
-                    # Нас пригальмували ще на вході. Корисна дія тут - змінити
-                    # відбиток, а не чекати: довжина паузи Vinted не цікавить,
-                    # а обмежувач і так уже розтягнув інтервал для всього
-                    # ринку. Пауза в 20+40+80 секунд коштувала нам циклу
-                    # цілком, і то на КОЖНУ категорію, бо _get_json піднімає
-                    # сесію заново після кожного 403.
-                    self.stats["bootstrap_" + str(resp.status_code)] += 1
+                if resp.status_code == 403:
+                    # 403 на головній - це блок адреси, а не темпу. Коротка
+                    # пауза тут була моєю помилкою: я підібрав її під 429
+                    # ("чекати безглуздо, треба міняти відбиток") і застосував
+                    # до обох кодів. За тиждень роботи це дало 36 тисяч відмов
+                    # на піднятті сесії - бот довбив заблокований вхід кожні
+                    # шість секунд і тим сам тримав блок. Тепер відступаємо
+                    # надовго і мовчки.
+                    self.stats["bootstrap_403"] += 1
+                    self._trip_breaker()
+                    raise VintedBlocked(
+                        f"{self.market.code}: головна віддала 403, відступаю"
+                    )
+
+                if resp.status_code == 429:
+                    # А ось тут пауза справді ні до чого: сесія жива, нас
+                    # лише просять пригальмувати. Міняємо відбиток і йдемо далі.
+                    self.stats["bootstrap_429"] += 1
                     self.limiter.penalise()
                     delay = min(6.0, 2.0 * attempt)
                     log.warning(
-                        "[%s] головна віддала %s, міняю відбиток (пауза %.0fс)",
-                        self.market.code, resp.status_code, delay,
+                        "[%s] головна віддала 429, міняю відбиток (пауза %.0fс)",
+                        self.market.code, delay,
                     )
                     await asyncio.sleep(delay)
                     self._rotate_identity()
                     continue
 
+                self.stats[f"bootstrap_{resp.status_code}"] += 1
                 log.warning(
                     "[%s] головна віддала %s (%s/%s)",
                     self.market.code, resp.status_code, attempt, self.max_retries,
                 )
                 await asyncio.sleep(min(6.0, 2.0 * attempt))
 
+            self.stats["bootstrap_gave_up"] += 1
             raise VintedBlocked(f"{self.market.code}: не вдалось підняти сесію")
 
     def _rotate_identity(self) -> None:
@@ -160,7 +182,35 @@ class VintedClient:
 
     # ------------------------------------------------------------------ запит
 
+    def _trip_breaker(self) -> None:
+        """403 отримано: відступаємо, і що далі, то довше.
+
+        Кожен наступний блок поспіль подвоює паузу (хвилина, дві, чотири...
+        до півгодини). Успішне читання скидає лічильник. Сенс у тому, щоб
+        заблокована адреса мала шанс "охолонути": продовжувати стукати в
+        зачинені двері - найнадійніший спосіб лишити їх зачиненими.
+        """
+        self._block_strikes = min(self._block_strikes + 1, 5)
+        pause = min(60.0 * (2 ** (self._block_strikes - 1)), 1800.0)
+        self._blocked_until = time.monotonic() + pause
+        self._rotate_identity()
+        self._bootstrapped = False
+        log.warning(
+            "[%s] 403: відступаю на %.0f хв (блок %s поспіль)",
+            self.market.code, pause / 60, self._block_strikes,
+        )
+
+    @property
+    def blocked_for(self) -> float:
+        """Скільки секунд ще не чіпаємо цей ринок."""
+        return max(0.0, self._blocked_until - time.monotonic())
+
     async def _get_json(self, path: str, params: list[tuple[str, Any]]) -> dict[str, Any]:
+        if self.blocked_for > 0:
+            self.stats["skipped_while_blocked"] += 1
+            raise VintedBlocked(
+                f"{self.market.code}: під блоком ще {self.blocked_for:.0f}с"
+            )
         await self.ensure_session()
         last_error: Exception | None = None
 
@@ -187,6 +237,7 @@ class VintedClient:
             if resp.status_code == 200:
                 self.limiter.relax()
                 self.stats["ok"] += 1
+                self._block_strikes = 0
                 try:
                     return resp.json()
                 except ValueError as exc:
@@ -231,7 +282,8 @@ class VintedClient:
                 if attempt >= min(2, self.max_retries):
                     raise VintedBlocked(f"{self.market.code}: HTTP {resp.status_code}")
                 if blocked:
-                    await self.ensure_session(force=True)
+                    self._trip_breaker()
+                    raise VintedBlocked(f"{self.market.code}: HTTP 403, відступаю")
                 continue
 
             if 500 <= resp.status_code < 600:

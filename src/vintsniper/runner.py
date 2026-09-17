@@ -77,6 +77,8 @@ class Sniper:
         self.last_cycle_ts = 0
         self._last_cycle_monotonic: float | None = None
         self.last_error: str | None = None
+        # Скільки стрічок не прочиталось у поточному циклі
+        self._scan_errors = 0
 
         polling = settings.polling or {}
         # По лімітеру на ринок: різні хости, різні лічильники
@@ -279,8 +281,16 @@ class Sniper:
         while True:
             started = time.monotonic()
             try:
+                # Помилку, яку записав _scan усередині циклу, НЕ затираємо:
+                # цикл може завершитись "успішно", не прочитавши жодної
+                # стрічки, і тоді беззастережне self.last_error = None робить
+                # мовчазний провал невидимим. Саме так бот тиждень крутив
+                # порожні оберти зі status "ok" і last_error "None", поки
+                # кожен його запит падав.
+                self._scan_errors = 0
                 await self.run_cycle()
-                self.last_error = None
+                if not self._scan_errors:
+                    self.last_error = None
             except VintedBlocked as exc:
                 self.last_error = str(exc)
                 log.warning("Vinted пригальмував нас: %s. Пауза 120с", exc)
@@ -514,6 +524,7 @@ class Sniper:
             # Не тільки в лог: якщо Vinted не віддає стрічку, бот НЕ здоровий,
             # хай навіть він бадьоро крутить цикли. Раніше /health показував
             # "ok" і порожній last_error, поки жодна категорія не читалась.
+            self._scan_errors += 1
             self.last_error = f"[{market.code}/{category.key}] {exc}"
             log.warning("[%s/%s] стрічка не прочиталась: %s", market.code, category.key, exc)
             return 0, 0
@@ -1152,6 +1163,10 @@ class Sniper:
             },
             # false означає, що ринок працює за запасним словником назв
             # станів, а не за прочитаними з API
+            # Скільки секунд ринок ще під запобіжником після 403
+            "blocked_for": {
+                code: round(c.blocked_for) for code, c in self.clients.items()
+            },
             "status_probed": {
                 code: m.probed for code, m in self.status_maps.items()
             },
