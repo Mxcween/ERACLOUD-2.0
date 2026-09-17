@@ -24,6 +24,13 @@ from .ratelimit import RateLimiter
 
 log = logging.getLogger(__name__)
 
+# Мітка лота в розмітці. За нею ж вирішуємо, де сторінку можна обірвати.
+ITEM_MARKER = 'data-testid="product-item-id'
+# Скільки тексту без нових лотів читаємо, перш ніж визнати, що вони скінчились
+ITEM_TAIL_SLACK = 120_000
+# Запобіжник, якщо розмітка колись зміниться і мітка перестане траплятись
+MAX_PAGE_CHARS = 3_000_000
+
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -79,6 +86,7 @@ class VintedClient:
         # Запобіжник на 403. Поки він зведений, ринок не чіпаємо взагалі.
         self._blocked_until = 0.0
         self._block_strikes = 0
+        self._collected = ""
 
     def _base_headers(self) -> dict[str, str]:
         return {
@@ -224,14 +232,60 @@ class VintedClient:
                 f"{self.market.code}: відповідь не JSON ({len(resp.content)} байт)"
             ) from exc
 
+    async def _harvest_items(self, resp: httpx.Response) -> str:
+        """Читає сторінку доти, доки не зібрано всі лоти, і обриває звʼязок.
+
+        Лоти лежать суцільним шматком: до першого - 60 КБ голови, після
+        останнього - 6.5 МБ хвоста, який нам не потрібен взагалі. Тому
+        щойно після останнього знайденого лота пройшло достатньо тексту без
+        нових, читання припиняємо. Недовантажене не потрапляє ні в памʼять,
+        ні в трафік.
+        """
+        parts: list[str] = []
+        total = 0
+        found = 0
+        quiet = 0
+        async for chunk in resp.aiter_text():
+            parts.append(chunk)
+            total += len(chunk)
+            hits = chunk.count(ITEM_MARKER)
+            if hits:
+                found += hits
+                quiet = 0
+            elif found:
+                quiet += len(chunk)
+            if found and quiet > ITEM_TAIL_SLACK:
+                break
+            if total > MAX_PAGE_CHARS:
+                log.warning(
+                    "[%s] сторінка довша за %s символів, читаю не далі",
+                    self.market.code, MAX_PAGE_CHARS,
+                )
+                break
+        return "".join(parts)
+
     async def _get_page(self, path: str, params: list[tuple[str, Any]]) -> str:
         """Сторінка каталогу як текст. Той самий шлях відмов, що й у JSON."""
-        resp = await self._request(path, params, accept="text/html")
-        return resp.text
+        self._collected = ""
+        await self._request(path, params, accept="text/html", collect=self._harvest_items)
+        return self._collected
 
     async def _request(
-        self, path: str, params: list[tuple[str, Any]], *, accept: str
+        self,
+        path: str,
+        params: list[tuple[str, Any]],
+        *,
+        accept: str,
+        collect=None,
     ) -> httpx.Response:
+        """Один запит з усіма повторами, штрафами й запобіжником.
+
+        collect - необовʼязковий читач тіла, який працює ПОТОКОМ. Потрібен
+        сторінкам каталогу: вони важать 7 МБ, з яких корисні 9% (решта -
+        хвіст після останнього лота), і читати їх цілком означало пік у 349
+        МБ памʼяті при стелі 512 на безкоштовному Render. Живий бот від
+        цього падав кожні десять хвилин.
+        """
         if self.blocked_for > 0:
             self.stats["skipped_while_blocked"] += 1
             raise VintedBlocked(
@@ -243,14 +297,26 @@ class VintedClient:
         for attempt in range(1, self.max_retries + 1):
             await self.limiter.acquire()
             try:
-                resp = await self._client.get(
-                    path,
-                    params=params,
-                    headers={
-                        "Accept": accept,
-                        "Referer": f"{self.market.base_url}/catalog",
-                    },
-                )
+                if collect is None:
+                    resp = await self._client.get(
+                        path,
+                        params=params,
+                        headers={
+                            "Accept": accept,
+                            "Referer": f"{self.market.base_url}/catalog",
+                        },
+                    )
+                else:
+                    async with self._client.stream(
+                        "GET", path, params=params,
+                        headers={
+                            "Accept": accept,
+                            "Referer": f"{self.market.base_url}/catalog",
+                        },
+                    ) as resp:
+                        self._collected = (
+                            await collect(resp) if resp.status_code == 200 else ""
+                        )
             except httpx.HTTPError as exc:
                 last_error = exc
                 self.stats["network"] += 1
