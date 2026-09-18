@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from vintsniper.settings import Market
-from vintsniper.vinted.client import USER_AGENTS, VintedBlocked, VintedClient
+from vintsniper.vinted.client import VintedBlocked, VintedClient
 from vintsniper.vinted.ratelimit import RateLimiter
 
 MARKET = Market(code="PL", host="www.vinted.pl", currency="PLN", locale="pl", shipping_eur=3.5)
@@ -163,13 +163,15 @@ class TestRefusalKind:
             return httpx.Response(403, text="no")
 
         client = build(handler)
-        first = client._user_agent
         with pytest.raises(VintedBlocked):
             await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
         await client.close()
 
         assert client.blocked_for > 0, "після 403 ринок має бути на паузі"
-        assert client._user_agent != first or len(USER_AGENTS) == 1
+        # Перевіряємо наслідок зміни відбитка, а не сам User-Agent: він
+        # береться випадково зі списку й може збігтись сам із собою, через
+        # що тест падав лише в повному прогоні, а не поодинці.
+        assert client._bootstrapped is False, "сесію треба піднімати наново"
 
 
 class TestCategoryRotation:
@@ -363,3 +365,42 @@ class TestFailuresAreVisible:
         await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
         await client.close()
         assert client.stats["bootstrap_ok"] == 1
+
+
+class TestBlockedMarketDoesNotKillStartup:
+    """403 на головній не має зупиняти весь бот.
+
+    Запобіжник кидає VintedBlocked одразу, і на старті цей виняток проходив
+    наскрізь: процес падав цілком - разом з другим ринком, слухачем команд і
+    студією, - через одну відмову на одному ринку.
+    """
+
+    @pytest.mark.asyncio
+    async def test_ensure_session_raises_so_callers_must_cope(self, no_sleep):
+        client = build(lambda request: httpx.Response(403, text="no"))
+        with pytest.raises(VintedBlocked):
+            await client.ensure_session()
+        assert client.blocked_for > 0
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_the_market_recovers_once_the_pause_is_over(self, no_sleep):
+        payload = {"items": [], "pagination": {"total_entries": 0, "time": 1700000000}}
+        state = {"forbid": True}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if state["forbid"]:
+                return httpx.Response(403, text="no")
+            if request.url.path == "/":
+                return httpx.Response(200, text="<html></html>")
+            return httpx.Response(200, json=payload)
+
+        client = build(handler)
+        with pytest.raises(VintedBlocked):
+            await client.ensure_session()
+
+        state["forbid"] = False
+        client._blocked_until = 0.0
+        await client.ensure_session()
+        assert client._bootstrapped, "після паузи сесія має підніматись"
+        await client.close()

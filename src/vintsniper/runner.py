@@ -192,15 +192,22 @@ class Sniper:
     # ------------------------------------------------------------------ старт
 
     async def setup(self) -> None:
-        accepted = self.settings.accepted_status_ids()
         buckets = (self.settings.conditions or {}).get("buckets") or {}
-        probe_catalog = self.settings.enabled_categories[0].id
 
         for market in self.settings.enabled_markets:
             # Мапа станів створюється ПЕРШОЮ: клієнт читає сторінку, а там
             # мітки полів локалізовані, тому стан і бренд упізнаються за
-            # значеннями. Мапа вже при створенні знає запасні назви, тож
-            # чекати на опитування не треба.
+            # значеннями.
+            #
+            # Опитування назв станів прибрано зовсім. Воно мало сенс при
+            # старому API: один дешевий запит на стан. Тепер кожен такий
+            # запит - повне завантаження сторінки, тобто чотири сторінки
+            # залпом на ринок одразу на старті. Заміряно: цей залп ловить
+            # 403, запобіжник глушить ринок на хвилину, перший цикл не читає
+            # НІЧОГО, а наступний цикл знову йде опитувати - і так по колу.
+            # Взамін нічого не втрачено: стан визначається за порядком полів
+            # від бренду, і це давало 96/96 на обох ринках без опитування.
+            # Незнайомий рядок стану видно в /health як причину відсіву.
             status_map = StatusMap(market.code, buckets)
             self.status_maps[market.code] = status_map
 
@@ -215,10 +222,19 @@ class Sniper:
                 known_conditions=status_map.titles,
                 is_known_brand=lambda title: self.registry.by_title(title) is not None,
             )
-            await client.ensure_session()
+            # Сесію піднімаємо одразу, але її провал НЕ має валити запуск.
+            # 403 на головній - звичайна річ: запобіжник відкладе ринок на
+            # хвилину, і перший же цикл підніме сесію сам. Без цього одна
+            # відмова на старті вбивала весь процес разом з другим ринком,
+            # командами й студією.
+            try:
+                await client.ensure_session()
+            except (VintedError, httpx.HTTPError) as exc:
+                log.warning(
+                    "[%s] сесія на старті не піднялась (%s), спробую в циклі",
+                    market.code, exc,
+                )
             self.clients[market.code] = client
-
-            await status_map.resolve(client, accepted, probe_catalog)
 
         await self.fx.refresh()
 
@@ -351,12 +367,6 @@ class Sniper:
         if self.fx.needs_refresh():
             await self.fx.refresh()
 
-        # Мапа станів піднімається на старті, коли бот найлегше ловить 429.
-        # Якщо тоді не вдалось, спроба має повторитись сама: інакше ринок
-        # працює за запасним словником до наступного деплою, а це тиха
-        # неточність, про яку ніхто не дізнається.
-        await self._reprobe_status_maps()
-
         # Команди слухає окрема задача (listen_commands), тут лише досилаємо
         # те, що чекало на чат.
         await self._flush_pending(now_ts)
@@ -465,19 +475,6 @@ class Sniper:
 
         if self.cycle_count % PRUNE_EVERY_CYCLES == 0:
             await self._prune(now_ts)
-
-    async def _reprobe_status_maps(self) -> None:
-        """Добирає назви станів для ринків, де опитування не вдалось."""
-        accepted = self.settings.accepted_status_ids()
-        probe_catalog = self.settings.enabled_categories[0].id
-        for code, status_map in self.status_maps.items():
-            if status_map.probed:
-                continue
-            client = self.clients.get(code)
-            if client is None:
-                continue
-            log.info("[%s] пробую дочитати назви станів", code)
-            await status_map.resolve(client, accepted, probe_catalog)
 
     def _category_slice(self) -> list[Category]:
         """Скільки категорій беремо цього циклу.
@@ -1218,9 +1215,6 @@ class Sniper:
             # Скільки секунд ринок ще під запобіжником після 403
             "blocked_for": {
                 code: round(c.blocked_for) for code, c in self.clients.items()
-            },
-            "status_probed": {
-                code: m.probed for code, m in self.status_maps.items()
             },
             "last_error": self.last_error,
         }
