@@ -72,6 +72,19 @@ COMMAND_MIN_IDLE = 0.05
 # Render рахує простій по ВХІДНИХ запитах і вимикає сервіс після 15 хвилин,
 # тому запас тут навмисно великий.
 SELF_PING_SECONDS = 600.0
+# Скільки чекати на один оберт циклу, перш ніж визнати його зависшим.
+# Запас навмисно великий: обхід із повтореннями й розтягнутим інтервалом
+# має право бути довгим, а ловимо ми тут не повільність, а вічність.
+CYCLE_WATCHDOG_SECONDS = 600.0
+# Пауза перед підняттям фонового робітника, який упав. Росте, щоб зламане
+# назавжди (битий токен) не крутилось у гарячому циклі, але починається з
+# секунд, щоб випадкова помилка не коштувала хвилин простою.
+WORKER_BACKOFF = (3.0, 10.0, 30.0, 120.0, 300.0)
+# Якщо робітник протримався довше - вважаємо, що він здоровий, і наступне
+# падіння лікуємо знову з найкоротшої паузи.
+WORKER_HEALTHY_AFTER = 300.0
+# Як часто попереджати власника, що трафік випереджає календар
+TRAFFIC_WARN_EVERY = 6 * 3600.0
 
 
 class Sniper:
@@ -108,6 +121,13 @@ class Sniper:
             max_slowdown=float(polling.get("traffic_max_slowdown", 8.0)),
         )
         self._traffic_seen = 0
+        self._traffic_warned_at = 0.0
+        # Скільки разів кожен фоновий робітник піднімався заново, і скільки
+        # обертів циклу зависло. Обидві цифри видно в /health: тихо померлий
+        # робітник - саме та поломка, через яку бот виглядав живим і при тому
+        # не відповідав на команди.
+        self._worker_restarts: Counter[str] = Counter()
+        self._cycles_stuck = 0
         self.per_page = int(polling.get("items_per_page", 96))
         self.cycle_seconds = float(polling.get("cycle_seconds", 45))
         self.max_age = int(polling.get("max_item_age_seconds", 3600))
@@ -245,9 +265,17 @@ class Sniper:
                 )
             self.clients[market.code] = client
 
-        saved_month = await asyncio.to_thread(self.repo.get_state, "traffic_month")
-        saved_bytes = await asyncio.to_thread(self.repo.get_state, "traffic_bytes")
-        self.traffic.adopt(saved_month or "", int(saved_bytes or 0))
+        # База може бути недоступна (не заданий DATABASE_URL, упав Neon) - це
+        # не причина не запускатись. Без збереженого лічильника бюджет візьме
+        # витрату за календарем, див. TrafficBudget.adopt.
+        saved_month, saved_bytes = "", 0
+        try:
+            saved_month = await asyncio.to_thread(self.repo.get_state, "traffic_month") or ""
+            raw = await asyncio.to_thread(self.repo.get_state, "traffic_bytes")
+            saved_bytes = int(raw or 0)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("лічильник трафіку не прочитався (%s), беру за календарем", exc)
+        self.traffic.adopt(saved_month, saved_bytes)
         if self.traffic.monthly_bytes:
             log.info("бюджет трафіку: %s", self.traffic.stats())
 
@@ -331,9 +359,26 @@ class Sniper:
                 # порожні оберти зі status "ok" і last_error "None", поки
                 # кожен його запит падав.
                 self._scan_errors = 0
-                await self.run_cycle()
+                # Сторожовий таймер на оберт. Виняток - не єдиний спосіб для
+                # циклу зупинитись: достатньо одного await, який не
+                # завершиться ніколи, і бот назавжди залишається "в циклі"
+                # зі статусом ok. Саме так до цього помирав слухач команд,
+                # і та сама поломка тут була б непомітною ще довше.
+                await asyncio.wait_for(
+                    self.run_cycle(), timeout=CYCLE_WATCHDOG_SECONDS
+                )
                 if not self._scan_errors:
                     self.last_error = None
+            except asyncio.TimeoutError:
+                self._cycles_stuck += 1
+                self.last_error = (
+                    f"оберт завис довше за {CYCLE_WATCHDOG_SECONDS:.0f}с"
+                )
+                log.warning(
+                    "оберт циклу завис довше за %.0fс, кидаю і починаю новий "
+                    "(таких разів: %s)",
+                    CYCLE_WATCHDOG_SECONDS, self._cycles_stuck,
+                )
             except VintedBlocked as exc:
                 self.last_error = str(exc)
                 log.warning("Vinted пригальмував нас: %s. Пауза 120с", exc)
@@ -359,8 +404,65 @@ class Sniper:
             # розтягується рівно на це випередження. Так ліміт доживає до
             # кінця місяця, і хостинг не має за що зупиняти сервіс.
             pace = self.traffic.slowdown()
+            await self._warn_if_throttled(pace)
             elapsed = time.monotonic() - started
             await asyncio.sleep(max(1.0, self.cycle_seconds * penalty * pace - elapsed))
+
+    async def supervise(self, name: str, worker) -> None:
+        """Тримає фонового робітника живим, скільки працює сам процес.
+
+        Кожен робітник уже ловить свої винятки всередині, але ловить їх у
+        своєму while True - а якщо виняток вилетить з самого while (чи з
+        першого рядка до нього), задача просто помирає. Тихо: процес живий,
+        health віддає ok, сканування йде. Просто бот більше не відповідає на
+        команди, або не доставляє знахідки, або не стукає у власну адресу - і
+        хостинг через чверть години його приспить. Рівно так це й виглядало
+        щоразу, коли власник писав "бот заглох, не реагує зовсім".
+
+        Чистий return - не поломка: так робітник каже, що роботи для нього
+        немає (Telegram не налаштований, RENDER_EXTERNAL_URL порожній). Такого
+        не піднімаємо, інакше отримаємо гарячий цикл на порожньому місці.
+        """
+        attempt = 0
+        while True:
+            started = time.monotonic()
+            try:
+                await worker()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                log.exception("робітник %s упав, піднімаю заново", name)
+            else:
+                log.info("робітник %s завершився сам, роботи для нього немає", name)
+                return
+            self._worker_restarts[name] += 1
+            if time.monotonic() - started >= WORKER_HEALTHY_AFTER:
+                attempt = 0  # довго жив - разове падіння, піднімаємо швидко
+            delay = WORKER_BACKOFF[min(attempt, len(WORKER_BACKOFF) - 1)]
+            attempt += 1
+            await asyncio.sleep(delay)
+
+    async def _warn_if_throttled(self, pace: float) -> None:
+        """Каже власнику, що бот сам себе придушив заради бюджету трафіку.
+
+        Інакше це виглядає як поломка: алерти йдуть удвічі рідше, а причини
+        ніде не видно, крім /health, який ніхто не відкриває.
+        """
+        if pace < 1.5:
+            return
+        now = time.monotonic()
+        if now - self._traffic_warned_at < TRAFFIC_WARN_EVERY:
+            return
+        self._traffic_warned_at = now
+        t = self.traffic.stats()
+        await self.notifier.send_text(
+            "🐢 Притискаю темп, щоб трафіку вистачило до кінця місяця.\n"
+            f"Витрачено <b>{t['used_gb']}</b> з {t['budget_gb']} ГБ "
+            f"({int(float(t['used_share']) * 100)}%), місяця минуло "
+            f"{int(float(t['month_share']) * 100)}%.\n"
+            f"Пауза між обходами довша в {t['slowdown']} раза. "
+            "Коли витрата зрівняється з календарем, швидкість вернеться сама."
+        )
 
     async def run_cycle(self) -> None:
         self.cycle_count += 1
@@ -1211,6 +1313,11 @@ class Sniper:
             # Слухач команд живе окремою задачею, і колись він завис так, що
             # бот справно слав алерти й мовчав на будь-яку команду. Тут видно
             # одразу: since_ok росте - слухач стоїть.
+            # Скільки разів фоновий робітник піднімався заново і скільки
+            # обертів зависло. Нулі тут означають, що тиша в боті - не від
+            # померлої задачі, і шукати треба в іншому місці.
+            "workers": dict(self._worker_restarts),
+            "cycles_stuck": self._cycles_stuck,
             "commands": {
                 "polls": self._commands_polled,
                 "stuck": self._commands_stuck,
@@ -1275,11 +1382,20 @@ async def main(settings: Settings) -> None:
     tasks: list[asyncio.Task[None]] = []
     try:
         await sniper.setup()
-        tasks.append(asyncio.create_task(sniper.listen_commands()))
-        tasks.append(asyncio.create_task(sniper.deliver_forever()))
-        tasks.append(asyncio.create_task(sniper.stay_awake_forever()))
+        # Кожен фоновий робітник - під наглядом. Створити задачу й забути про
+        # неї означає погодитись, що одна її смерть назавжди відніме частину
+        # бота, а зовні все виглядатиме справним.
+        workers: list[tuple[str, Any]] = [
+            ("commands", sniper.listen_commands),
+            ("delivery", sniper.deliver_forever),
+            ("self_ping", sniper.stay_awake_forever),
+        ]
         if studio is not None:
-            tasks.append(asyncio.create_task(studio.run_forever()))
+            workers.append(("studio", studio.run_forever))
+        tasks.extend(
+            asyncio.create_task(sniper.supervise(name, worker), name=name)
+            for name, worker in workers
+        )
         await sniper.run_forever()
     finally:
         for task in tasks:

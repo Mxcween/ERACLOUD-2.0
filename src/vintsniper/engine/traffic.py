@@ -35,14 +35,41 @@ class TrafficBudget:
         self.grace_bytes = grace_bytes
         self.used_bytes = 0
         self.month = ""
+        # Чи лічильник справжній, чи прийнятий "за календарем" - це видно в
+        # /health, щоб потім не ламати голову, звідки взялись гігабайти.
+        self.assumed = False
 
     # ------------------------------------------------------------- облік
 
-    def adopt(self, month: str, used_bytes: int) -> None:
-        """Підхоплює збережений лічильник. Чужий місяць - починаємо з нуля."""
-        now = self.current_month()
-        self.month = now
-        self.used_bytes = int(used_bytes) if month == now else 0
+    def adopt(self, month: str, used_bytes: int, *, now: datetime | None = None) -> None:
+        """Підхоплює збережений лічильник.
+
+        А якщо підхоплювати нічого - бере витрату ЗА КАЛЕНДАРЕМ, тобто таку,
+        якою вона була б при рівномірній витраті бюджету від початку місяця.
+
+        Нуль тут був дірою в усьому задумі. На безкоштовному Render немає
+        диска, і поки DATABASE_URL не заданий, лічильник зникає з кожним
+        перезапуском. Бот прокидався з переконанням, що цього місяця не
+        витратив нічого, йшов на повній до наступного перезапуску - і так
+        по колу, скільки б гігабайтів насправді не пішло. Рівно цим
+        закінчився минулий місяць: сервіс зупинили за перевитрату.
+
+        Календарна оцінка цього не допускає. Вона не дає бігти швидше за
+        бюджет (темп виходить ~1.0, тобто рівно "решта бюджету на решту
+        часу"), і далі на неї накладається вже справжня виміряна витрата.
+        Ціна помилки в інший бік мізерна: якщо бот половину місяця простояв,
+        ми не скористаємось правом надолужити - а надолужувати нам і не
+        треба, нам треба не вмирати.
+        """
+        current = self.current_month(now)
+        self.month = current
+        saved = int(used_bytes) if month == current else 0
+        if saved > 0 or self.monthly_bytes <= 0:
+            self.used_bytes = saved
+            self.assumed = False
+            return
+        self.used_bytes = int(self.monthly_bytes * self.month_progress(now))
+        self.assumed = True
 
     def add(self, nbytes: int, *, now: datetime | None = None) -> None:
         month = self.current_month(now)
@@ -50,6 +77,7 @@ class TrafficBudget:
             # Місяць змінився - ліміт обнулився разом з ним
             self.month = month
             self.used_bytes = 0
+            self.assumed = False
         self.used_bytes += max(0, int(nbytes))
 
     @staticmethod
@@ -102,7 +130,7 @@ class TrafficBudget:
         current_rate = self.share_used / elapsed
         return min(self.max_slowdown, max(1.0, current_rate / allowed_rate))
 
-    def stats(self) -> dict[str, float | str]:
+    def stats(self) -> dict[str, float | str | bool]:
         elapsed = self.month_progress()
         return {
             "month": self.month or self.current_month(),
@@ -111,4 +139,7 @@ class TrafficBudget:
             "used_share": round(self.share_used, 3),
             "month_share": round(elapsed, 3),
             "slowdown": round(self.slowdown(), 2),
+            # true означає "лічильник не зберігся, стартова цифра взята за
+            # календарем" - див. adopt(). Лікується одним DATABASE_URL.
+            "assumed": self.assumed,
         }

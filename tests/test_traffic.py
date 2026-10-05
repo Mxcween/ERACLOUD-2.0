@@ -80,10 +80,17 @@ class TestPace:
 
 
 class TestMonthRollover:
-    def test_a_new_month_resets_the_counter(self):
+    def test_a_new_month_drops_last_months_counter(self):
+        """Витрата з минулого місяця не переноситься.
+
+        Нуля тут більше немає: лічильник чужого місяця - це відсутність
+        даних, а на відсутність даних бюджет відповідає календарною оцінкою,
+        див. TestAmnesia. На першу годину місяця вона так само нуль, тому
+        ліміт усе одно обнуляється разом з місяцем.
+        """
         b = TrafficBudget(monthly_gb=100)
-        b.adopt("2026-09", 90 * GB)
-        assert b.used_bytes == 0, "ліміт обнуляється разом з місяцем"
+        b.adopt("2026-09", 90 * GB, now=at(1, 0))
+        assert b.used_bytes == 0
 
     def test_the_same_month_is_picked_up(self):
         b = TrafficBudget(monthly_gb=100)
@@ -108,3 +115,64 @@ class TestProgress:
         b = TrafficBudget(monthly_gb=0)
         b.add(500 * GB)
         assert b.slowdown(at(2)) == 1.0
+
+
+class TestAmnesia:
+    """Що робити, коли лічильник не зберігся.
+
+    Без диска й без DATABASE_URL бот прокидається без пам'яті про витрачене.
+    Нуль у цьому місці - це дозвіл їхати на повній до наступного перезапуску,
+    скільки б не було витрачено насправді; саме так минулого разу й вибрали
+    100 ГБ і сервіс зупинили.
+    """
+
+    def test_no_saved_counter_assumes_the_calendar(self):
+        b = TrafficBudget(monthly_gb=100)
+        b.adopt("", 0, now=at(16, 12))
+        assert 48 * GB < b.used_bytes < 52 * GB
+        assert b.assumed is True
+
+    def test_the_calendar_guess_means_exactly_full_speed(self):
+        """Оцінка "рівно за графіком" не гальмує, але й бігти наперед не дає."""
+        b = TrafficBudget(monthly_gb=100)
+        b.adopt("", 0, now=at(16, 12))
+        assert b.slowdown(at(16, 12)) == 1.0
+
+    def test_real_spending_lands_on_top_of_the_guess(self):
+        b = TrafficBudget(monthly_gb=100)
+        b.adopt("", 0, now=at(16, 12))
+        b.add(20 * GB, now=at(16, 12))
+        assert b.slowdown(at(16, 12)) > 1.3
+
+    def test_a_saved_counter_wins_over_the_guess(self):
+        b = TrafficBudget(monthly_gb=100)
+        b.adopt("2026-10", 3 * GB, now=at(16, 12))
+        assert b.used_bytes == 3 * GB
+        assert b.assumed is False
+
+    def test_a_counter_from_another_month_is_not_trusted(self):
+        """Чужий місяць - не дані, тому знову календар, а не нуль."""
+        b = TrafficBudget(monthly_gb=100)
+        b.adopt("2026-09", 90 * GB, now=at(16, 12))
+        assert 48 * GB < b.used_bytes < 52 * GB
+        assert b.assumed is True
+
+    def test_start_of_month_without_memory_costs_nothing(self):
+        b = TrafficBudget(monthly_gb=100)
+        b.adopt("", 0, now=at(1, 0))
+        assert b.used_bytes == 0
+        assert b.slowdown(at(1, 0)) == 1.0
+
+    def test_a_disabled_budget_guesses_nothing(self):
+        b = TrafficBudget(monthly_gb=0)
+        b.adopt("", 0, now=at(16, 12))
+        assert b.used_bytes == 0
+        assert b.assumed is False
+
+    def test_a_new_month_clears_the_guess(self):
+        b = TrafficBudget(monthly_gb=100)
+        b.adopt("", 0, now=at(16, 12))
+        b.month = "2026-09"
+        b.add(1 * GB, now=at(16, 12))
+        assert b.assumed is False
+        assert b.used_bytes == 1 * GB
