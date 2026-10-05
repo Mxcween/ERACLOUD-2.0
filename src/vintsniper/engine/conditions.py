@@ -95,7 +95,7 @@ class StatusMap:
         log.info(
             "[%s] назви станів: %s",
             self.market_code,
-            {t: i for t, i in sorted(self._title_to_id.items(), key=lambda kv: kv[1])},
+            dict(sorted(self._title_to_id.items(), key=lambda kv: kv[1])),
         )
 
     @property

@@ -89,7 +89,7 @@ def suggestions(bounds: list[float]) -> list[str]:
         return ["all"]
     ordered = sorted(bounds)
     out = [PriceRange(high=ordered[0]).label]
-    for low, high in zip(ordered, ordered[1:]):
+    for low, high in zip(ordered, ordered[1:], strict=False):
         out.append(PriceRange(low=low, high=high).label)
     out.append(PriceRange(low=ordered[-1]).label)
     return out

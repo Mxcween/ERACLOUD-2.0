@@ -18,8 +18,8 @@ from typing import Any
 import httpx
 
 from ..models import Listing, utc_now_ts
-from .catalog_page import parse_catalog
 from ..settings import Market
+from .catalog_page import parse_catalog
 from .ratelimit import RateLimiter
 
 log = logging.getLogger(__name__)
@@ -31,11 +31,12 @@ ITEM_TAIL_SLACK = 120_000
 # Запобіжник, якщо розмітка колись зміниться і мітка перестане траплятись
 MAX_PAGE_CHARS = 3_000_000
 
+# Рядки User-Agent довші за межу й розірвати їх не можна: це один токен.
 USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",  # noqa: E501
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",  # noqa: E501
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15",  # noqa: E501
 ]
 
 
@@ -87,6 +88,10 @@ class VintedClient:
         self._blocked_until = 0.0
         self._block_strikes = 0
         self._collected = ""
+        # Скільки байтів реально прийшло по дроту. Саме це рахує хостинг,
+        # і саме з цього бот вирішує, чи може йти на повній швидкості.
+        self.bytes_downloaded = 0
+        self._streamed_bytes = 0
 
     def _base_headers(self) -> dict[str, str]:
         return {
@@ -317,6 +322,7 @@ class VintedClient:
                         self._collected = (
                             await collect(resp) if resp.status_code == 200 else ""
                         )
+                        self._streamed_bytes = int(resp.num_bytes_downloaded or 0)
             except httpx.HTTPError as exc:
                 last_error = exc
                 self.stats["network"] += 1
@@ -329,6 +335,12 @@ class VintedClient:
                 self.limiter.relax()
                 self.stats["ok"] += 1
                 self._block_strikes = 0
+                # У потоковому режимі num_bytes_downloaded уже недоступний
+                # після виходу з контексту, тому беремо збережене значення.
+                self.bytes_downloaded += (
+                    self._streamed_bytes if collect is not None
+                    else int(resp.num_bytes_downloaded or 0)
+                )
                 return resp
 
             if resp.status_code in (401, 419):

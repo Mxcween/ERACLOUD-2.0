@@ -88,7 +88,9 @@ class PriceBook:
         """
         return self.sample_size(brand_id, catalog_id, bucket, now_ts) < self.window_size
 
-    def under_sampled(self, pairs: Iterable[tuple[int, int]], buckets: list[str], now_ts: int) -> list[tuple[int, int]]:
+    def under_sampled(
+        self, pairs: Iterable[tuple[int, int]], buckets: list[str], now_ts: int
+    ) -> list[tuple[int, int]]:
         """Пари бренд+категорія, де ще замало даних для медіани."""
         out = []
         for brand_id, catalog_id in pairs:

@@ -2,12 +2,10 @@
 from __future__ import annotations
 
 import time
-
 from collections import Counter
+from dataclasses import replace
 
 import pytest
-
-from dataclasses import replace
 
 from vintsniper.engine.fat import FatGate
 from vintsniper.engine.ranges import PriceRange

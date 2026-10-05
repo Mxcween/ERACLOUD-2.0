@@ -119,7 +119,7 @@ class TestModelFallback:
 
     @pytest.mark.asyncio
     async def test_all_out_of_quota_explains_billing(self, monkeypatch):
-        from studio.imagegen import ImageGenError, ImageGenerator, _TryNextModel
+        from studio.imagegen import ImageGenerator, ImageGenError, _TryNextModel
         from studio.settings import StudioSettings
 
         gen = ImageGenerator(StudioSettings(bot_token="t", api_key="k", models=["a", "b"]))

@@ -34,7 +34,7 @@ class Draft:
 def parse(text: str) -> Draft:
     parts = [p.strip() for p in re.split(r"[/\n|]+", text or "") if p.strip()]
     d = Draft()
-    for name, value in zip(FIELD_ORDER, parts):
+    for name, value in zip(FIELD_ORDER, parts, strict=False):
         if name == "measurements":
             nums = re.findall(r"\d+(?:[.,]\d+)?", value)
             d.measurements = nums or None
@@ -67,7 +67,7 @@ def _condition(raw: str) -> str:
 def _measure_line(nums: list[str] | None) -> str:
     if not nums:
         return ""
-    pairs = [f"{lbl.lower()} {n}" for lbl, n in zip(_MEASURE_LABELS, nums)]
+    pairs = [f"{lbl.lower()} {n}" for lbl, n in zip(_MEASURE_LABELS, nums, strict=False)]
     return ", ".join(pairs).capitalize() + "."
 
 

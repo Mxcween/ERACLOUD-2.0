@@ -25,10 +25,11 @@ from .engine.pricing import PriceBook
 from .engine.ranges import PriceRange, suggestions
 from .engine.schedule import in_quiet_hours
 from .engine.scoring import evaluate
+from .engine.traffic import TrafficBudget
 from .health import HealthServer
 from .models import Deal, Listing, utc_now_ts
-from .notify.formatting import HELP_TEXT, format_startup, format_stats
 from .notify.discord import DiscordNotifier
+from .notify.formatting import HELP_TEXT, format_startup, format_stats
 from .notify.telegram import Command, TelegramNotifier
 from .settings import CONFIG_DIR, Category, Market, Settings
 from .storage.db import build_engine, build_session_factory
@@ -99,6 +100,14 @@ class Sniper:
             jitter=0.25,
         )
         self.limiters: dict[str, RateLimiter] = {}
+        # Бюджет трафіку на місяць. Безкоштовний хостинг зупиняє сервіс,
+        # коли ліміт вибрано, тому бот стежить за ним сам і розтягує паузу
+        # рівно настільки, наскільки забіг наперед.
+        self.traffic = TrafficBudget(
+            monthly_gb=float(polling.get("monthly_traffic_gb", 0) or 0),
+            max_slowdown=float(polling.get("traffic_max_slowdown", 8.0)),
+        )
+        self._traffic_seen = 0
         self.per_page = int(polling.get("items_per_page", 96))
         self.cycle_seconds = float(polling.get("cycle_seconds", 45))
         self.max_age = int(polling.get("max_item_age_seconds", 3600))
@@ -236,6 +245,12 @@ class Sniper:
                 )
             self.clients[market.code] = client
 
+        saved_month = await asyncio.to_thread(self.repo.get_state, "traffic_month")
+        saved_bytes = await asyncio.to_thread(self.repo.get_state, "traffic_bytes")
+        self.traffic.adopt(saved_month or "", int(saved_bytes or 0))
+        if self.traffic.monthly_bytes:
+            log.info("бюджет трафіку: %s", self.traffic.stats())
+
         await self.fx.refresh()
 
         since = utc_now_ts() - self.price_book.window_seconds
@@ -340,8 +355,12 @@ class Sniper:
             # а справжнє гальмо - обмежувач.
             penalty = min(1.5, max((lim.penalty for lim in self.limiters.values()),
                                    default=1.0))
+            # Бюджет трафіку: якщо витрата випереджає календар, цикл
+            # розтягується рівно на це випередження. Так ліміт доживає до
+            # кінця місяця, і хостинг не має за що зупиняти сервіс.
+            pace = self.traffic.slowdown()
             elapsed = time.monotonic() - started
-            await asyncio.sleep(max(1.0, self.cycle_seconds * penalty - elapsed))
+            await asyncio.sleep(max(1.0, self.cycle_seconds * penalty * pace - elapsed))
 
     async def run_cycle(self) -> None:
         self.cycle_count += 1
@@ -419,6 +438,20 @@ class Sniper:
                 deals.extend(found[:limit])
                 log.info("глибокий прохід: %s знахідок, лишив %s найжирніших",
                          len(found), limit)
+
+        # Скільки трафіку з'їв цей цикл. Рахуємо різницю, бо лічильники
+        # клієнтів накопичувальні й переживають цикл.
+        total = sum(c.bytes_downloaded for c in self.clients.values())
+        if total > self._traffic_seen:
+            self.traffic.add(total - self._traffic_seen)
+            self._traffic_seen = total
+            if self.traffic.monthly_bytes and self.cycle_count % 10 == 0:
+                await asyncio.to_thread(
+                    self.repo.set_state, "traffic_month", self.traffic.month
+                )
+                await asyncio.to_thread(
+                    self.repo.set_state, "traffic_bytes", str(self.traffic.used_bytes)
+                )
 
         if observations:
             await asyncio.to_thread(self.repo.add_observations, observations)
@@ -1213,6 +1246,7 @@ class Sniper:
             # false означає, що ринок працює за запасним словником назв
             # станів, а не за прочитаними з API
             # Скільки секунд ринок ще під запобіжником після 403
+            "traffic": self.traffic.stats() if self.traffic.monthly_bytes else {},
             "blocked_for": {
                 code: round(c.blocked_for) for code, c in self.clients.items()
             },

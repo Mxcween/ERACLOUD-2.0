@@ -12,7 +12,7 @@ from typing import Any, Callable
 import httpx
 
 from . import caption
-from .imagegen import ImageGenError, ImageGenerator
+from .imagegen import ImageGenerator, ImageGenError
 from .settings import StudioSettings
 from .styles import DEFAULT_STYLE, STYLES, style_list
 
