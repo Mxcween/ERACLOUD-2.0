@@ -26,6 +26,12 @@ services:
         value: "3.11.9"
       - key: PYTHONPATH
         value: src
+      # Які ринки вмикати, через кому: ES - тільки Іспанія, PL,DE - Польща й
+      # Німеччина. Порожньо = як позначено в config.yaml (зараз PL+DE).
+      # Саме цим одне розгортання відрізняється від іншого: той самий
+      # репозиторій, свій Render, свій бот, свої ринки. Див. docs/SHARING.md.
+      - key: MARKETS
+        sync: false
       # Значення нижче задаються в панелі Render, у репозиторій не потрапляють
       - key: TELEGRAM_BOT_TOKEN
         sync: false

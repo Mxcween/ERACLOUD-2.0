@@ -166,6 +166,17 @@ def load_settings(config_dir: Path | None = None) -> Settings:
     cats_raw = _load_yaml(cfg_dir / "categories.yaml")
     brands_raw = _load_yaml(cfg_dir / "brands.yaml")
 
+    # Набір ринків можна задати змінною оточення: MARKETS=ES вмикає тільки
+    # Іспанію, MARKETS=PL,DE - тільки Польщу й Німеччину. Потрібно це для
+    # того, щоб ОДИН репозиторій обслуговував кілька розгортань: у кожного
+    # власника свій Render, свій бот у Telegram, свій бюджет трафіку й свої
+    # ринки, а код і конфіг спільні. Порожня змінна - працює те, що
+    # позначено enabled у config.yaml.
+    wanted = {
+        code.strip().upper()
+        for code in os.getenv("MARKETS", "").split(",")
+        if code.strip()
+    }
     markets = [
         Market(
             code=m["code"],
@@ -173,10 +184,24 @@ def load_settings(config_dir: Path | None = None) -> Settings:
             currency=m["currency"],
             locale=m.get("locale", "en-GB,en;q=0.9"),
             shipping_eur=float(m.get("shipping_eur", 0.0)),
-            enabled=bool(m.get("enabled", True)),
+            enabled=(
+                str(m["code"]).upper() in wanted
+                if wanted
+                else bool(m.get("enabled", True))
+            ),
         )
         for m in main.get("markets", [])
     ]
+    unknown = wanted - {str(m.code).upper() for m in markets}
+    if unknown:
+        # Мовчки проігнорувати означає запустити бота не на тому ринку, на
+        # якому просили, і дізнатись про це з тишини в Telegram.
+        raise ValueError(
+            f"MARKETS містить ринки, яких немає в config.yaml: {sorted(unknown)}. "
+            f"Доступні: {sorted(str(m.code).upper() for m in markets)}"
+        )
+    if wanted and not any(m.enabled for m in markets):
+        raise ValueError("MARKETS не ввімкнув жодного ринку")
 
     categories = [
         Category(
