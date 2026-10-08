@@ -1,0 +1,12 @@
+services:
+  vintsniper:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "10000:10000"
+    volumes:
+      # Щоб база цін і список переглянутих лотів пережили перезапуск
+      - ./data:/app/data
+      # Конфіги можна правити без перезбірки образу
+      - ./config:/app/config:ro

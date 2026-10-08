@@ -1,0 +1,51 @@
+[project]
+name = "vintsniper"
+version = "0.1.0"
+description = "Vinted monitor for liquid resale brands with Telegram alerts"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx==0.27.2",
+    "PyYAML==6.0.2",
+    "SQLAlchemy==2.0.36",
+    "python-dotenv==1.0.1",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]==3.2.3"]
+dev = ["pytest==8.3.3", "pytest-asyncio==0.24.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+# Лінтер треба закріплювати, інакше він означає різне в різних оточеннях.
+# Перезібраний контейнер поставив свіжий ruff, і той видав 51 зауваження по
+# коду, якого ніхто не чіпав - самі лише стильові правила, увімкнені за
+# замовчуванням у новій версії. "ruff чистий" після такого нічого не варте,
+# бо наступного разу він буде чистий або ні залежно від дати встановлення.
+# 110, бо саме так цей код і написаний: довших рядків усього чотири на весь
+# проєкт. Ставити 100 означало б перебити 25 місць заради нового смаку, а не
+# заради читабельності.
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+# Той самий набір, на якому код писався: помилки pycodestyle, pyflakes,
+# сортування імпортів і найкорисніші баг-правила. Модернізацію (UP) і
+# стилістику свідомо не вмикаємо: вона переписала б півпроєкту заради смаку.
+select = ["E", "F", "I", "B", "SIM", "C4"]
+ignore = [
+    "B008",    # виклик у значенні за замовчуванням - у нас це навмисно
+    "SIM105",  # contextlib.suppress замість try/except/pass - не завжди ясніше
+    "SIM102",  # вкладені if інколи читабельніші за злиті
+    "C408",    # dict() замість літерала - дрібниця
+]

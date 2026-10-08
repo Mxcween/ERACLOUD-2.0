@@ -1,0 +1,456 @@
+import pytest
+
+from vintsniper.engine.filters import Candidate, Rejected, screen
+
+
+@pytest.fixture
+def outerwear(settings):
+    return settings.category_by_id(1206)
+
+
+@pytest.fixture
+def tshirts(settings):
+    return settings.category_by_id(77)
+
+
+@pytest.fixture
+def shoes(settings):
+    return settings.category_by_id(1242)
+
+
+def run(listing, settings, registry, category, price_eur, bucket="very_good"):
+    return screen(
+        listing, settings=settings, registry=registry,
+        category=category, price_eur=price_eur, bucket=bucket,
+    )
+
+
+class TestBrandGate:
+    def test_accepts_known_brand(self, listing_factory, settings, registry, outerwear):
+        result = run(listing_factory(), settings, registry, outerwear, 20.0)
+        assert isinstance(result, Candidate)
+        assert result.brand.name == "Nike"
+
+    def test_rejects_unknown_brand(self, listing_factory, settings, registry, outerwear):
+        result = run(listing_factory(brand_title="Zara"), settings, registry, outerwear, 20.0)
+        assert isinstance(result, Rejected)
+        assert "не в списку" in result.reason
+
+    def test_brand_match_is_case_insensitive(self, listing_factory, settings, registry, outerwear):
+        result = run(listing_factory(brand_title="NIKE"), settings, registry, outerwear, 20.0)
+        assert isinstance(result, Candidate)
+
+
+class TestPriceCeiling:
+    def test_expensive_tshirt_is_rejected_even_for_premium_brand(
+        self, listing_factory, settings, registry, tshirts
+    ):
+        """Головне правило замовника: футболки по 50 євро бути не повинно."""
+        listing = listing_factory(brand_title="Stone Island", size_title="L")
+        result = run(listing, settings, registry, tshirts, 50.0)
+        assert isinstance(result, Rejected)
+        assert "стелю" in result.reason
+
+    def test_same_price_passes_for_outerwear(self, listing_factory, settings, registry, outerwear):
+        listing = listing_factory(brand_title="Stone Island", size_title="L")
+        assert isinstance(run(listing, settings, registry, outerwear, 50.0), Candidate)
+
+    def test_rejects_below_minimum(self, listing_factory, settings, registry, outerwear):
+        result = run(listing_factory(), settings, registry, outerwear, 0.5)
+        assert isinstance(result, Rejected)
+        assert "мінімум" in result.reason
+
+
+class TestSizeGate:
+    def test_rejects_size_outside_whitelist(self, listing_factory, settings, registry, outerwear):
+        result = run(listing_factory(size_title="XXXL / 60"), settings, registry, outerwear, 20.0)
+        assert isinstance(result, Rejected)
+        assert "розмір" in result.reason
+
+    def test_extreme_but_sellable_sizes_pass(self, listing_factory, settings, registry, outerwear):
+        """XS і XXL пропускаємо навмисно.
+
+        Заміряно на живому потоці: разом вони давали більше відмов, ніж усі
+        інші причини вкупі. Перепродаються повільніше за M і L, але ми не
+        носимо, а перепродаємо, і зайвий тиждень очікування дешевший за
+        вдвічі вужчий потік. XXXL лишається за бортом: воно майже не йде.
+        """
+        for size in ("XS / 44", "XXL / 56"):
+            result = run(listing_factory(size_title=size), settings, registry, outerwear, 20.0)
+            assert isinstance(result, Candidate), f"{size} мав пройти"
+
+    def test_accepts_whitelisted_size(self, listing_factory, settings, registry, outerwear):
+        assert isinstance(
+            run(listing_factory(size_title="XL / 54"), settings, registry, outerwear, 20.0),
+            Candidate,
+        )
+
+    def test_shoes_use_eu_range(self, listing_factory, settings, registry, shoes):
+        ok = run(listing_factory(size_title="43"), settings, registry, shoes, 20.0)
+        too_small = run(listing_factory(size_title="37"), settings, registry, shoes, 20.0)
+        assert isinstance(ok, Candidate)
+        assert isinstance(too_small, Rejected)
+
+    def test_accessories_skip_size_check(self, listing_factory, settings, registry):
+        accessories = settings.category_by_id(82)
+        result = run(listing_factory(size_title=""), settings, registry, accessories, 20.0)
+        assert isinstance(result, Candidate)
+
+
+class TestConditionGate:
+    def test_unknown_condition_is_rejected(self, listing_factory, settings, registry, outerwear):
+        result = run(listing_factory(), settings, registry, outerwear, 20.0, bucket=None)
+        assert isinstance(result, Rejected)
+        assert "стан" in result.reason
+
+
+class TestJunkListings:
+    """Нашивка бренду це не куртка бренду, хоч і лежить у тій самій категорії."""
+
+    def test_patch_is_rejected(self, listing_factory, settings, registry, outerwear):
+        listing = listing_factory(brand_title="Nike", title="Patch Nike vintage")
+        result = run(listing, settings, registry, outerwear, 14.0)
+        assert isinstance(result, Rejected)
+        assert "не сама річ" in result.reason
+
+    def test_laces_are_rejected(self, listing_factory, settings, registry, shoes):
+        listing = listing_factory(brand_title="Nike", title="Sznurówki Nike", size_title="43")
+        result = run(listing, settings, registry, shoes, 8.0)
+        assert isinstance(result, Rejected)
+
+    def test_real_jacket_still_passes(self, listing_factory, settings, registry, outerwear):
+        listing = listing_factory(brand_title="Nike", title="Kurtka wiatrówka Nike")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)
+
+    def test_vintage_in_title_is_not_treated_as_a_tag(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        listing = listing_factory(brand_title="Nike", title="Vintage Nike windbreaker")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)
+
+
+class TestSlidesAndSlippers:
+    """Тапки замовник просив не слати: дешеві й погано продаються."""
+
+    @pytest.mark.parametrize(
+        "title",
+        ["Pantofle", "Napapijri papucs 44/45", "Adidas Yeezy slides",
+         "Klapki Nike", "adidas Adilette Aqua", "Badelatschen Nike", "Ciabatte Nike"],
+    )
+    def test_slides_are_rejected(self, listing_factory, settings, registry, shoes, title):
+        listing = listing_factory(brand_title="Nike", title=title, size_title="43")
+        assert isinstance(run(listing, settings, registry, shoes, 12.0), Rejected), title
+
+    def test_real_sneakers_still_pass(self, listing_factory, settings, registry, shoes):
+        for title in ["Nike Air Force 1 T. 41", "Jordan 4 oreo", "Nike court vission 41"]:
+            listing = listing_factory(brand_title="Nike", title=title, size_title="43")
+            assert isinstance(run(listing, settings, registry, shoes, 12.0), Candidate), title
+
+
+class TestCaps:
+    """Кепки лише в люксу: у масових брендів це мертвий товар."""
+
+    @pytest.mark.parametrize(
+        "title", ["Nike cap", "Czapka Nike", "Nike Kappe", "Snapback Nike", "Nike bucket hat"]
+    )
+    def test_mass_brand_caps_rejected(self, listing_factory, settings, registry, title):
+        accessories = settings.category_by_id(82)
+        listing = listing_factory(brand_title="Nike", title=title, size_title="")
+        result = run(listing, settings, registry, accessories, 12.0)
+        assert isinstance(result, Rejected), title
+        assert "головний убір" in result.reason
+
+    def test_luxury_caps_pass(self, listing_factory, settings, registry):
+        accessories = settings.category_by_id(82)
+        for brand in ("Gucci", "Louis Vuitton"):
+            listing = listing_factory(brand_title=brand, title=f"{brand} cap", size_title="")
+            assert isinstance(run(listing, settings, registry, accessories, 25.0), Candidate), brand
+
+    def test_vintage_is_not_mistaken_for_a_hat(self, listing_factory, settings, registry, outerwear):
+        listing = listing_factory(brand_title="Nike", title="Vintage Nike jacket")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)
+
+
+class TestWornRunningShoes:
+    """Затерті бігові кросівки: правильний бренд, нульова ліквідність."""
+
+    @pytest.mark.parametrize(
+        "title",
+        ["Asics running", "Nike Laufschuhe", "Buty do biegania Asics",
+         "Chaussures de course Asics", "Trail running Salomon"],
+    )
+    def test_running_shoes_rejected(self, listing_factory, settings, registry, shoes, title):
+        listing = listing_factory(brand_title="Nike", title=title, size_title="42")
+        result = run(listing, settings, registry, shoes, 12.0)
+        assert isinstance(result, Rejected), title
+
+    def test_running_word_is_fine_on_a_jacket(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Саме той лот, який бот знайшов раніше і який блокувати не можна."""
+        listing = listing_factory(
+            brand_title="New Balance", title="Coupe vent Running New Balance", size_title="M"
+        )
+        assert isinstance(run(listing, settings, registry, outerwear, 15.0), Candidate)
+
+    def test_lifestyle_sneakers_still_pass(self, listing_factory, settings, registry, shoes):
+        for title in ["Nike Air Force 1 T. 41", "Jordan 4 oreo", "Nike Dunk Low"]:
+            listing = listing_factory(brand_title="Nike", title=title, size_title="42")
+            assert isinstance(run(listing, settings, registry, shoes, 12.0), Candidate), title
+
+
+class TestPerCategoryCondition:
+    def test_good_condition_passes_for_clothing_but_not_for_shoes(self, settings):
+        """Стан "добре" на одязі робочий, на взутті - ні.
+
+        Для одягу це просто ношена річ, і чи є на ній катишки, тепер видно на
+        фото. Для взуття "добре" означає затерту підошву, а її ніяким зором не
+        врятуєш, тож взуття лишається звуженим.
+        """
+        assert 3 in settings.accepted_status_ids()
+        assert 3 in settings.accepted_status_ids("outerwear")
+        assert settings.accepted_status_ids("shoes") == [6, 1, 2]
+
+    def test_unknown_category_falls_back_to_default(self, settings):
+        assert settings.accepted_status_ids("nope") == settings.accepted_status_ids()
+
+
+class TestConditionIsCheckedTwice:
+    """Звуження станів іде в запит до Vinted, але фільтр мусить ловити і сам.
+
+    Інакше зміна в API тихо повертає нам затерте взуття, і ніхто не помітить.
+    """
+
+    def test_worn_shoes_rejected_even_if_api_returns_them(
+        self, listing_factory, settings, registry, shoes
+    ):
+        listing = listing_factory(
+            brand_title="Nike", title="Pair de chaussure", size_title="41.5"
+        )
+        result = run(listing, settings, registry, shoes, 12.0, bucket="good")
+        assert isinstance(result, Rejected)
+        assert "стан" in result.reason
+
+    def test_same_shoes_in_very_good_pass(self, listing_factory, settings, registry, shoes):
+        listing = listing_factory(
+            brand_title="Nike", title="Pair de chaussure", size_title="41.5"
+        )
+        assert isinstance(run(listing, settings, registry, shoes, 12.0, bucket="very_good"), Candidate)
+
+    def test_clothing_in_good_passes(self, listing_factory, settings, registry, outerwear):
+        """Одяг у стані "добре" проходить фільтр: далі його дивиться зір.
+
+        Відсікати цілу третину пропозиції за галочкою продавця, коли можна
+        подивитись на саму річ, - це втрачати нормальні лоти наосліп.
+        """
+        listing = listing_factory(brand_title="Nike", title="Kurtka Nike")
+        result = run(listing, settings, registry, outerwear, 20.0, bucket="good")
+        assert isinstance(result, Candidate)
+
+    def test_very_good_clothing_passes(self, listing_factory, settings, registry, outerwear):
+        listing = listing_factory(brand_title="Nike", title="Kurtka Nike")
+        assert isinstance(
+            run(listing, settings, registry, outerwear, 20.0, bucket="very_good"), Candidate
+        )
+
+    def test_accepted_buckets_match_status_ids(self, settings):
+        assert settings.accepted_buckets("shoes") == {"new", "very_good"}
+        assert settings.accepted_buckets("outerwear") == {"new", "very_good", "good"}
+
+
+class TestBudgetSneakerModels:
+    """Дешеві бігові моделі не перепродаються, але медіана бренду їх маскує.
+
+    Медіана рахується по зв'язці бренд+категорія, тому Air Max і Dunk тягнуть
+    "Nike, взуття" вгору, і Revolution за 11 євро виглядає як знахідка.
+    """
+
+    @pytest.mark.parametrize(
+        "title",
+        ["Nike Revolution vel 41", "Nike Downshifter 11", "adidas Duramo SL",
+         "adidas Runfalcon 3.0", "Asics Patriot 13", "Puma Anzarun Lite",
+         "Nike Flex Experience Run"],
+    )
+    def test_budget_models_rejected(self, listing_factory, settings, registry, shoes, title):
+        listing = listing_factory(brand_title="Nike", title=title, size_title="41")
+        result = run(listing, settings, registry, shoes, 12.0, bucket="very_good")
+        assert isinstance(result, Rejected), title
+
+    @pytest.mark.parametrize(
+        "title",
+        ["Nike Air Force 1 T. 41", "Nike Air Max 90", "Jordan 4 oreo",
+         "Nike Dunk Low panda", "adidas Samba OG"],
+    )
+    def test_desirable_models_still_pass(self, listing_factory, settings, registry, shoes, title):
+        listing = listing_factory(brand_title="Nike", title=title, size_title="41")
+        assert isinstance(run(listing, settings, registry, shoes, 12.0, bucket="very_good"), Candidate), title
+
+    def test_model_words_do_not_leak_into_clothing(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Список діє лише у взутті: "Quest" чи "Galaxy" у назві куртки це не привід."""
+        listing = listing_factory(brand_title="Nike", title="Nike Galaxy jacket vintage")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)
+
+
+class TestShoesMustHaveNumericSize:
+    """Структурний фільтр замість переліку слів усіма мовами.
+
+    Реальна пара взуття завжди має числовий розмір: Vinted вимагає його при
+    публікації. Шнурки, устілки, коробки та брелоки йдуть як "Einheitsgröße"
+    або взагалі без розміру. Це ловить їх будь-якою мовою, тоді як список
+    слів завжди пропустить чиюсь: французькі "lacets" пролізли саме так.
+    """
+
+    @pytest.mark.parametrize("size", ["", "Einheitsgröße", "One size", "Uniwersalny", "-"])
+    def test_shoes_without_numeric_size_rejected(
+        self, listing_factory, settings, registry, shoes, size
+    ):
+        listing = listing_factory(
+            brand_title="Nike", title="Paire de lacets VANS bleus marines neufs",
+            size_title=size,
+        )
+        result = run(listing, settings, registry, shoes, 8.86, bucket="new")
+        assert isinstance(result, Rejected), size
+        assert "розмір" in result.reason
+
+    def test_real_pair_with_a_size_passes(self, listing_factory, settings, registry, shoes):
+        listing = listing_factory(brand_title="Nike", title="Nike Air Force 1", size_title="42")
+        assert isinstance(run(listing, settings, registry, shoes, 12.0, bucket="very_good"), Candidate)
+
+    def test_half_sizes_work(self, listing_factory, settings, registry, shoes):
+        listing = listing_factory(brand_title="Nike", title="Nike Dunk Low", size_title="44,5")
+        assert isinstance(run(listing, settings, registry, shoes, 12.0, bucket="very_good"), Candidate)
+
+    def test_clothing_without_size_is_untouched(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Правило суто для взуття: куртки без розміру трапляються нормально."""
+        listing = listing_factory(brand_title="Nike", title="Kurtka Nike", size_title="")
+        assert isinstance(run(listing, settings, registry, outerwear, 20.0), Candidate)
+
+    def test_french_laces_word_also_blocked(self, listing_factory, settings, registry, shoes):
+        """Другий рубіж: навіть із розміром 42 слово в назві відсіює лот."""
+        listing = listing_factory(
+            brand_title="Nike", title="Paire de lacets VANS", size_title="42"
+        )
+        assert isinstance(run(listing, settings, registry, shoes, 8.0, bucket="new"), Rejected)
+
+
+class TestShoeCategoryIsTrainersOnly:
+    """Тапки лікуються деревом категорій, а не списком слів.
+
+    Батьківська категорія 1231 містить підкатегорії Flip-Flops & Slides,
+    Slippers, Sandals, Clogs та Sports Shoes. Поки бот опитував її, тапки
+    лізли постійно, і кожен раз новою мовою: claquette, papucs, Adiletten.
+    Опитуємо 1242 Trainers, і жодна з тих підкатегорій просто не існує.
+    """
+
+    def test_shoe_feed_points_at_trainers(self, settings):
+        shoes = next(c for c in settings.enabled_categories if c.key == "shoes")
+        assert shoes.id == 1242, "1231 тягне сандалі й шльопанці разом з кросівками"
+
+    def test_slide_subcategories_are_never_polled(self, settings):
+        polled = {c.id for c in settings.enabled_categories}
+        for cid, what in [
+            (1231, "усе взуття"), (2969, "Flip-Flops & Slides"), (2659, "Slippers"),
+            (2968, "Sandals"), (2970, "Clogs & Mules"), (1452, "Sports Shoes"),
+            (2657, "Espadrilles"), (1238, "Formal Shoes"),
+        ]:
+            assert cid not in polled, f"{what} не має опитуватись"
+
+    def test_adiletten_would_be_blocked_even_if_misfiled(
+        self, listing_factory, settings, registry, shoes
+    ):
+        """Другий рубіж на випадок, якщо продавець запхне тапки в кросівки."""
+        listing = listing_factory(brand_title="Adidas", title="Adiletten adidas", size_title="46")
+        assert isinstance(run(listing, settings, registry, shoes, 4.9, bucket="new"), Rejected)
+
+
+class TestTrouserSizes:
+    """Джинси й штани не мають буквеного розміру, і це їх убивало."""
+
+    def test_waist_in_range_passes(self, listing_factory, settings, registry):
+        jeans = settings.category_by_id(257)
+        for size in ("W32 | DE 48", "46 | W30", "50 | W34"):
+            result = run(listing_factory(size_title=size), settings, registry, jeans, 20.0)
+            assert isinstance(result, Candidate), f"{size} мав пройти"
+
+    def test_waist_outside_range_is_rejected(self, listing_factory, settings, registry):
+        jeans = settings.category_by_id(257)
+        result = run(listing_factory(size_title="W44 | DE 60"), settings, registry, jeans, 20.0)
+        assert isinstance(result, Rejected)
+
+    def test_letter_size_still_wins_where_it_exists(self, listing_factory, settings, registry):
+        """Джогери бувають і в S/M/L - буквений шлях має лишитись першим."""
+        jeans = settings.category_by_id(257)
+        assert isinstance(
+            run(listing_factory(size_title="L / 52"), settings, registry, jeans, 20.0), Candidate
+        )
+
+    def test_waist_rule_does_not_leak_into_other_categories(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Куртка з розміром "48" не має проходити як штани."""
+        result = run(listing_factory(size_title="48"), settings, registry, outerwear, 20.0)
+        assert isinstance(result, Rejected)
+
+
+class TestPlaceholderSizes:
+    """"Розмір невідомий" - не те саме, що "розмір не підходить".
+
+    Продавці часто лишають "Einheitsgröße", "Sonstige" чи "Uniwersalny".
+    Заміряно: 46 відмов за 25 хвилин на самих лише цих написах.
+    """
+
+    def test_placeholder_passes_for_clothing(self, listing_factory, settings, registry, outerwear):
+        for label in ("Einheitsgröße", "Sonstige", "Uniwersalny", "One size"):
+            result = run(listing_factory(size_title=label), settings, registry, outerwear, 20.0)
+            assert isinstance(result, Candidate), f"{label} мав пройти"
+
+    def test_placeholder_still_blocks_shoes(self, listing_factory, settings, registry, shoes):
+        """У взутті відсутність числа означає шнурки або коробку, а не пару.
+
+        Це окремий запобіжник, і послаблення для одягу не має його зачепити.
+        """
+        result = run(listing_factory(size_title="Einheitsgröße"), settings, registry, shoes, 20.0)
+        assert isinstance(result, Rejected)
+
+    def test_a_real_size_we_do_not_want_is_still_rejected(
+        self, listing_factory, settings, registry, outerwear
+    ):
+        """Послаблення стосується лише невідомого, а не завідомо чужого."""
+        result = run(listing_factory(size_title="XXXL"), settings, registry, outerwear, 20.0)
+        assert isinstance(result, Rejected)
+
+
+class TestStatusFallback:
+    """Провал опитування назв станів має коштувати неточності, не сліпоти.
+
+    Заміряно на живому боті: польська мапа не піднялась на старті (429 у
+    найгарячіший момент), і ринок PL мовчки відкидав усе підряд - 126 лотів
+    за 25 хвилин з поміткою "невідомий стан 'Bardzo dobry'". До наступного
+    деплою половина бота була сліпа.
+    """
+
+    def test_known_titles_work_without_probing(self):
+        from vintsniper.engine.conditions import StatusMap
+
+        buckets = {"new": [6, 1], "very_good": [2], "good": [3]}
+        fresh = StatusMap("PL", buckets)   # жодного запиту до API
+
+        assert fresh.bucket("Bardzo dobry") == "very_good"
+        assert fresh.bucket("Nowy z metką") == "new"
+        assert fresh.bucket("Nowy bez metki") == "new"
+        assert fresh.bucket("Sehr gut") == "very_good"
+        assert fresh.bucket("Neu mit Etikett") == "new"
+
+    def test_an_unprobed_map_says_so(self):
+        from vintsniper.engine.conditions import StatusMap
+
+        assert StatusMap("PL", {"new": [6]}).probed is False
+
+    def test_nonsense_is_still_unknown(self):
+        from vintsniper.engine.conditions import StatusMap
+
+        assert StatusMap("PL", {"new": [6]}).bucket("абракадабра") is None
