@@ -48,6 +48,11 @@ class VintedBlocked(VintedError):
     """Vinted відповів 403/429. Не помилка коду, треба просто пригальмувати."""
 
 
+# Як часто пробувати підняти сесію заново, поки працюємо без кук. Куки нам
+# не потрібні для читання, але якщо блок з головної зняли - краще їх мати.
+COOKIELESS_RETRY_SECONDS = 1800.0
+
+
 class VintedClient:
     """Одна сесія на один ринок."""
 
@@ -87,6 +92,11 @@ class VintedClient:
         # Запобіжник на 403. Поки він зведений, ринок не чіпаємо взагалі.
         self._blocked_until = 0.0
         self._block_strikes = 0
+        # Чи працюємо без кук. Головна сторінка може віддавати 403 (адресу
+        # хостингу запідозрили), а сторінки каталогу при цьому віддаються
+        # нормально - заміряно. Див. ensure_session.
+        self._cookieless = False
+        self._cookieless_since = 0.0
         self._collected = ""
         # Скільки байтів реально прийшло по дроту. Саме це рахує хостинг,
         # і саме з цього бот вирішує, чи може йти на повній швидкості.
@@ -119,9 +129,14 @@ class VintedClient:
     async def ensure_session(self, *, force: bool = False) -> None:
         """Забирає анонімні куки з головної сторінки."""
         async with self._bootstrap_lock:
-            if self._bootstrapped and not force:
+            retry_cookieless = (
+                self._cookieless
+                and time.monotonic() - self._cookieless_since >= COOKIELESS_RETRY_SECONDS
+            )
+            if self._bootstrapped and not force and not retry_cookieless:
                 return
-            if force:
+            if force or retry_cookieless:
+                # Може, справа у відбитку, а не в самій адресі
                 self._rotate_identity()
 
             html_headers = {
@@ -156,21 +171,27 @@ class VintedClient:
                         log.info("[%s] сесія піднята, куки отримані", self.market.code)
                     self.limiter.relax()
                     self._bootstrapped = True
+                    self._cookieless = False
                     return
 
                 if resp.status_code == 403:
-                    # 403 на головній - це блок адреси, а не темпу. Коротка
-                    # пауза тут була моєю помилкою: я підібрав її під 429
-                    # ("чекати безглуздо, треба міняти відбиток") і застосував
-                    # до обох кодів. За тиждень роботи це дало 36 тисяч відмов
-                    # на піднятті сесії - бот довбив заблокований вхід кожні
-                    # шість секунд і тим сам тримав блок. Тепер відступаємо
-                    # надовго і мовчки.
+                    # 403 на головній - це блок адреси, а не темпу, і довбити
+                    # зачинені двері справді не треба. Але глушити через них
+                    # УВЕСЬ ринок виявилось найдорожчою помилкою з усіх:
+                    # сторінки каталогу віддаються і БЕЗ кук.
+                    #
+                    # Заміряно двічі. На живому боті за добу: 101 відмова на
+                    # головній, 30 тисяч пропущених читань проти 133
+                    # успішних - тобто ринок стояв під запобіжником 99% часу,
+                    # і за 26 годин бот знайшов 68 лотів замість кількох
+                    # тисяч. І тут же, холодним клієнтом без жодної куки:
+                    # 96 лотів із 96 на обох ринках.
+                    #
+                    # Тому головна тепер не обовʼязкова. Не відкрилась -
+                    # працюємо без кук і час від часу пробуємо знову.
                     self.stats["bootstrap_403"] += 1
-                    self._trip_breaker()
-                    raise VintedBlocked(
-                        f"{self.market.code}: головна віддала 403, відступаю"
-                    )
+                    self._go_cookieless("головна віддала 403")
+                    return
 
                 if resp.status_code == 429:
                     # А ось тут пауза справді ні до чого: сесія жива, нас
@@ -193,8 +214,24 @@ class VintedClient:
                 )
                 await asyncio.sleep(min(6.0, 2.0 * attempt))
 
+            # Спроби вичерпані (мережа, 5xx, 429 підряд). Куки для читання
+            # не потрібні, тому стояти через це теж не будемо: нехай читання
+            # саме вирішує свою долю зі своїми повторами й запобіжником.
             self.stats["bootstrap_gave_up"] += 1
-            raise VintedBlocked(f"{self.market.code}: не вдалось підняти сесію")
+            self._go_cookieless("не вдалось підняти сесію")
+
+    def _go_cookieless(self, why: str) -> None:
+        """Переходимо на читання без кук і перестаємо довбити головну."""
+        if not self._cookieless:
+            log.warning(
+                "[%s] %s, читаю каталог без кук (спробую знову через %.0f хв)",
+                self.market.code, why, COOKIELESS_RETRY_SECONDS / 60,
+            )
+        self._cookieless = True
+        self._cookieless_since = time.monotonic()
+        # Саме True: сесія "піднята" настільки, наскільки нам потрібно, і
+        # кожен наступний запит не має ходити на головну заново.
+        self._bootstrapped = True
 
     def _rotate_identity(self) -> None:
         self._client.cookies.clear()
@@ -220,6 +257,11 @@ class VintedClient:
             "[%s] 403: відступаю на %.0f хв (блок %s поспіль)",
             self.market.code, pause / 60, self._block_strikes,
         )
+
+    @property
+    def cookieless(self) -> bool:
+        """Чи читаємо каталог без кук, бо головна віддає 403."""
+        return self._cookieless
 
     @property
     def blocked_for(self) -> float:

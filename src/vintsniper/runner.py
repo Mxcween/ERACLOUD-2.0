@@ -1357,6 +1357,12 @@ class Sniper:
             "blocked_for": {
                 code: round(c.blocked_for) for code, c in self.clients.items()
             },
+            # Ринки, які читають каталог без кук, бо головна віддає 403.
+            # Читанню це не шкодить (заміряно), але знати про це треба: саме
+            # цей 403 колись глушив ринок на 99% часу.
+            "cookieless": [
+                code for code, c in self.clients.items() if c.cookieless
+            ],
             "last_error": self.last_error,
         }
 

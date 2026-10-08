@@ -12,7 +12,12 @@ import httpx
 import pytest
 
 from vintsniper.settings import Market
-from vintsniper.vinted.client import VintedBlocked, VintedClient
+from vintsniper.vinted.client import (
+    COOKIELESS_RETRY_SECONDS,
+    VintedBlocked,
+    VintedClient,
+    VintedError,
+)
 from vintsniper.vinted.ratelimit import RateLimiter
 
 MARKET = Market(code="PL", host="www.vinted.pl", currency="PLN", locale="pl", shipping_eur=3.5)
@@ -335,7 +340,9 @@ class TestFailuresAreVisible:
             raise httpx.ConnectError("мережа впала")
 
         client = build(handler)
-        with pytest.raises(VintedBlocked):
+        # Падає вже саме читання, а не підняття сесії: куки для читання не
+        # потрібні, тому провал головної більше не вирішує долю запиту.
+        with pytest.raises(VintedError):
             await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
         await client.close()
 
@@ -345,7 +352,7 @@ class TestFailuresAreVisible:
     @pytest.mark.asyncio
     async def test_an_unexpected_status_is_counted(self, no_sleep):
         client = build(lambda request: httpx.Response(503, text="maintenance"))
-        with pytest.raises(VintedBlocked):
+        with pytest.raises(VintedError):
             await client.fetch_catalog(catalog_id=1206, brand_ids=[53], per_page=96)
         await client.close()
 
@@ -367,40 +374,88 @@ class TestFailuresAreVisible:
         assert client.stats["bootstrap_ok"] == 1
 
 
-class TestBlockedMarketDoesNotKillStartup:
-    """403 на головній не має зупиняти весь бот.
+class TestHomepageIsOptional:
+    """403 на головній не має зупиняти ні бот, ні навіть один ринок.
 
-    Запобіжник кидає VintedBlocked одразу, і на старті цей виняток проходив
-    наскрізь: процес падав цілком - разом з другим ринком, слухачем команд і
-    студією, - через одну відмову на одному ринку.
+    Спершу цей виняток проходив наскрізь і валив процес цілком - разом з
+    другим ринком, слухачем команд і студією. Потім він лише зводив
+    запобіжник, і це здавалось правильним: "нас запідозрили, відступимо".
+
+    Заміряно на живому боті за добу: 101 відмова на головній, 30 тисяч
+    пропущених читань проти 133 успішних, 68 знахідок за 26 годин замість
+    кількох тисяч. Ринок стояв 99% часу. І тут же, холодним клієнтом без
+    жодної куки: 96 лотів із 96 на обох ринках. Куки для читання каталогу
+    не потрібні, тому головна - необовʼязкова.
     """
 
     @pytest.mark.asyncio
-    async def test_ensure_session_raises_so_callers_must_cope(self, no_sleep):
+    async def test_a_forbidden_homepage_does_not_block_the_market(self, no_sleep):
         client = build(lambda request: httpx.Response(403, text="no"))
-        with pytest.raises(VintedBlocked):
-            await client.ensure_session()
-        assert client.blocked_for > 0
+        await client.ensure_session()          # не кидає
+        assert client.blocked_for == 0, "запобіжник тут - це простій на годину"
+        assert client._cookieless is True
+        assert client.stats["bootstrap_403"] == 1
         await client.close()
 
     @pytest.mark.asyncio
-    async def test_the_market_recovers_once_the_pause_is_over(self, no_sleep):
-        payload = {"items": [], "pagination": {"total_entries": 0, "time": 1700000000}}
+    async def test_the_catalog_is_still_read_without_cookies(self, no_sleep):
+        page = (
+            '<div data-testid="product-item-id-11"></div>'
+            '<a href="/items/11-x"></a>'
+            '<span title="Kurtka Nike, Marka: Nike, Stan: Dobry, Rozmiar: L, 40 zł, 44 zł">x</span>'
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/":
+                return httpx.Response(403, text="no")
+            return httpx.Response(200, text=page)
+
+        client = build(handler)
+        items, _ = await client.fetch_catalog(catalog_id=1206, per_page=96)
+        assert len(items) == 1, "403 на головній не має коштувати нам лотів"
+        assert client.stats["ok"] == 1
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_the_homepage_is_not_hammered_while_cookieless(self, no_sleep):
+        """Довбити зачинені двері - найнадійніший спосіб лишити їх зачиненими."""
+        hits = {"home": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/":
+                hits["home"] += 1
+                return httpx.Response(403, text="no")
+            return httpx.Response(200, text="")
+
+        client = build(handler)
+        await client.ensure_session()
+        first_round = hits["home"]
+        assert first_round == 1, "одна спроба, далі працюємо без кук"
+
+        for _ in range(5):
+            await client.ensure_session()
+        assert hits["home"] == first_round, (
+            "після переходу на роботу без кук головну більше не чіпаємо"
+        )
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_cookies_are_picked_up_again_once_the_block_lifts(self, no_sleep):
         state = {"forbid": True}
 
         def handler(request: httpx.Request) -> httpx.Response:
             if state["forbid"]:
                 return httpx.Response(403, text="no")
-            if request.url.path == "/":
-                return httpx.Response(200, text="<html></html>")
-            return httpx.Response(200, json=payload)
+            return httpx.Response(200, text="<html></html>")
 
         client = build(handler)
-        with pytest.raises(VintedBlocked):
-            await client.ensure_session()
-
-        state["forbid"] = False
-        client._blocked_until = 0.0
         await client.ensure_session()
-        assert client._bootstrapped, "після паузи сесія має підніматись"
+        assert client._cookieless is True
+
+        # Минув час наступної спроби, і блок уже зняли
+        state["forbid"] = False
+        client._cookieless_since -= COOKIELESS_RETRY_SECONDS + 1
+        await client.ensure_session()
+        assert client._cookieless is False, "куки варто мати, якщо їх дають"
+        assert client.stats["bootstrap_ok"] == 1
         await client.close()
