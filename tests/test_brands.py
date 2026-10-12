@@ -65,3 +65,45 @@ class TestRegistry:
 
     def test_missing_cache_returns_none(self, tmp_path: Path):
         assert BrandRegistry.load(tmp_path / "nope.json") is None
+
+
+class TestTheShortList:
+    """Список брендів скорочено до тих, яких знає кожен.
+
+    До цього тут було 76 назв, відібраних за виміряним попитом. Відбір був
+    правильний, але на неправильне питання: він питав "чи розлітається це на
+    Vinted", а власнику треба "чи впізнаю я це, не гуглячи". Половина списку
+    не проходила саме цю перевірку, і алерти по ній виглядали як шум.
+    """
+
+    def _names(self):
+        import json
+
+        from vintsniper.settings import CONFIG_DIR
+        return [b["name"] for b in json.loads((CONFIG_DIR / "brand_ids.json").read_text())["brands"]]
+
+    def test_the_two_files_agree(self):
+        """brands.yaml редагують руками, brand_ids.json - той, що працює.
+
+        Розійтись вони можуть мовчки: бот прочитає лише json і спокійно
+        шукатиме бренд, якого в конфізі вже немає, або навпаки пропустить
+        доданий. Видно це буде тільки по дивних алертах.
+        """
+        from vintsniper.settings import load_settings
+        yaml_names = {b.name for b in load_settings().brands}
+        assert yaml_names == set(self._names())
+
+    def test_the_brands_the_owner_asked_to_drop_are_gone(self):
+        for name in ("Carhartt", "Carhartt WIP", "Timberland", "Napapijri"):
+            assert name not in self._names(), f"{name} прибрано на пряме прохання"
+
+    def test_the_big_names_are_all_there(self):
+        """Саме на цих тримається обсяг: Nike і Adidas - чверть усієї стрічки."""
+        for name in ("Nike", "Adidas", "Jordan", "Puma", "New Balance",
+                     "The North Face", "Levi's", "Calvin Klein"):
+            assert name in self._names()
+
+    def test_the_list_stays_short(self):
+        """Стеля навмисна. Список росте непомітно, по одному бренду за раз,
+        і саме так він доріс до 76 назв минулого разу."""
+        assert len(self._names()) <= 30, "більше тридцяти - це вже не 'самі ходові'"

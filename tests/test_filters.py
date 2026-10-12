@@ -160,11 +160,33 @@ class TestCaps:
         assert isinstance(result, Rejected), title
         assert "головний убір" in result.reason
 
-    def test_luxury_caps_pass(self, listing_factory, settings, registry):
+    def test_no_brand_is_excused_any_more(self, listing_factory, settings, registry):
+        """Виняток на кепки був для люксу, а люкс зі списку брендів пішов.
+
+        Gucci й Louis Vuitton трималися саме за кепки, але за цінами Vinted
+        це переважно репліки, тож їх прибрали разом з рештою незнайомих
+        власнику назв. Порожній список винятків означає, що кепки
+        відсікаються завжди - і це тепер єдина поведінка.
+        """
         accessories = settings.category_by_id(82)
-        for brand in ("Gucci", "Louis Vuitton"):
+        assert settings.cap_allowed_brands == set(), "список винятків має бути порожнім"
+        for brand in ("Gucci", "Nike", "Supreme"):
             listing = listing_factory(brand_title=brand, title=f"{brand} cap", size_title="")
-            assert isinstance(run(listing, settings, registry, accessories, 25.0), Candidate), brand
+            result = run(listing, settings, registry, accessories, 25.0)
+            assert isinstance(result, Rejected), brand
+
+    def test_the_exception_still_works_if_a_brand_comes_back(
+        self, listing_factory, settings, registry
+    ):
+        """Механізм не зламаний, він просто без входів.
+
+        Інакше повернення люксу в brands.yaml мовчки нічого б не дало, і
+        шукати причину довелось би в коді фільтра.
+        """
+        accessories = settings.category_by_id(82)
+        object.__setattr__(settings, "cap_allowed_brands", {"nike"})
+        listing = listing_factory(brand_title="Nike", title="Nike cap", size_title="")
+        assert isinstance(run(listing, settings, registry, accessories, 25.0), Candidate)
 
     def test_vintage_is_not_mistaken_for_a_hat(self, listing_factory, settings, registry, outerwear):
         listing = listing_factory(brand_title="Nike", title="Vintage Nike jacket")
