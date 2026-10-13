@@ -170,6 +170,7 @@ class Sniper:
             window=int(fat_cfg.get("window", 200)),
             floor_eur=float(fat_cfg.get("floor_eur", 20.0)),
             warmup_samples=int(fat_cfg.get("warmup_samples", 40)),
+            min_resale_eur=float(fat_cfg.get("min_resale_eur", 0.0)),
         )
         self.fat_max_per_cycle = int(fat_cfg.get("max_per_cycle", 3))
 
@@ -868,7 +869,7 @@ class Sniper:
         # зазвичай. Пороги вигоди вище відповідають на питання "чи вигідно",
         # і вигідного багато; тут відсікаємо все, крім верхнього хвоста, щоб
         # справді жирний лот не губився серед десятка прохідних.
-        fat_ok, note = self.fat.verdict(deal.profit_eur)
+        fat_ok, note = self.fat.verdict(deal.profit_eur, deal.resale_eur)
         if not fat_ok:
             self._drops["дрібне"] += 1
             log.info("%s | %s", note, deal.listing.url)

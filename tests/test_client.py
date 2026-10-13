@@ -14,6 +14,7 @@ import pytest
 from vintsniper.settings import Market
 from vintsniper.vinted.client import (
     COOKIELESS_RETRY_SECONDS,
+    MAX_BRAND_IDS,
     VintedBlocked,
     VintedClient,
     VintedError,
@@ -458,4 +459,89 @@ class TestHomepageIsOptional:
         await client.ensure_session()
         assert client._cookieless is False, "куки варто мати, якщо їх дають"
         assert client.stats["bootstrap_ok"] == 1
+        await client.close()
+
+
+class TestBrandChunking:
+    """Vinted ріже запит, у якому забагато brand_ids[].
+
+    Межу заміряно одиничними запитами з паузами: 18 ідентифікаторів віддають
+    200, 20 - вже 403. Довжина URL ні до чого (418 символів із десятьма
+    брендами проходять), кількість інших параметрів теж (24 status_ids[]
+    проходять) - ріже саме кількість brand_ids[].
+
+    Коштувала ця межа всього: з 22 брендами у фільтрі кожен запит повертав
+    403, запобіжник глушив ринок, і за дві години роботи бот мав НУЛЬ
+    успішних читань при 909 пропущених.
+    """
+
+    def _page(self, item_id: int) -> str:
+        return (
+            f'<div data-testid="product-item-id-{item_id}"></div>'
+            f'<a href="/items/{item_id}-x"></a>'
+            '<span title="Kurtka Nike, Marka: Nike, Stan: Dobry, Rozmiar: L, 40 zł, 44 zł">x</span>'
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_long_brand_list_is_split_across_requests(self, no_sleep):
+        seen: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            n = len(request.url.params.get_list("brand_ids[]"))
+            seen.append(n)
+            return httpx.Response(200, text=self._page(100 + len(seen)))
+
+        client = build(handler)
+        client._bootstrapped = True
+        items, _ = await client.fetch_catalog(
+            catalog_id=1206, brand_ids=list(range(1, 23)), per_page=96
+        )
+        assert len(seen) == 2, "22 бренди не влазять в один запит"
+        assert max(seen) <= MAX_BRAND_IDS
+        assert sum(seen) == 22, "жоден бренд не має загубитись між порціями"
+        assert len(items) == 2, "лоти всіх порцій зливаються в один список"
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_a_short_list_still_takes_one_request(self, no_sleep):
+        seen = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(len(request.url.params.get_list("brand_ids[]")))
+            return httpx.Response(200, text=self._page(1))
+
+        client = build(handler)
+        client._bootstrapped = True
+        await client.fetch_catalog(catalog_id=1206, brand_ids=[1, 2, 3], per_page=96)
+        assert seen == [3], "дробити коротший список - зайві запити на порожньому місці"
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_no_brand_filter_still_takes_one_request(self, no_sleep):
+        seen = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(len(request.url.params.get_list("brand_ids[]")))
+            return httpx.Response(200, text=self._page(1))
+
+        client = build(handler)
+        client._bootstrapped = True
+        await client.fetch_catalog(catalog_id=1206, per_page=96)
+        assert seen == [0], "без фільтра має бути рівно один запит, а не жодного"
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_the_same_lot_in_two_chunks_is_returned_once(self, no_sleep):
+        """Порції не перетинаються за брендами, але Vinted може віддати той
+        самий лот двічі - дублікат в алертах власник побачить одразу."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, text=self._page(777))
+
+        client = build(handler)
+        client._bootstrapped = True
+        items, _ = await client.fetch_catalog(
+            catalog_id=1206, brand_ids=list(range(1, 23)), per_page=96
+        )
+        assert [i.item_id for i in items] == [777]
         await client.close()

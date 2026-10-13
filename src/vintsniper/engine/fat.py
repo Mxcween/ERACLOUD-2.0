@@ -28,9 +28,19 @@ class FatGate:
         window: int = 200,
         floor_eur: float = 20.0,
         warmup_samples: int = 40,
+        min_resale_eur: float = 0.0,
     ) -> None:
         self.percentile = max(0.0, min(100.0, percentile))
         self.floor_eur = floor_eur
+        # Друга, незалежна вимога: скільки має коштувати сама річ.
+        #
+        # Самого профіту для "вагомої речі" не досить, і це видно на простому
+        # прикладі: футболка за 4 євро з продажем за 26 дає ті самі +22, що й
+        # куртка за 40 з продажем за 62. Арифметично це одне й те саме, по
+        # факту - ні: у першому випадку це дрібна операція, у другому річ,
+        # заради якої варто їхати. Планка профіту їх не розрізняє в принципі,
+        # бо дивиться на різницю, а не на масштаб.
+        self.min_resale_eur = max(0.0, min_resale_eur)
         self.warmup_samples = max(0, warmup_samples)
         self._seen: deque[float] = deque(maxlen=max(1, window))
         self.passed = 0
@@ -56,8 +66,16 @@ class FatGate:
             return self.floor_eur
         return max(self.floor_eur, _percentile(self._seen, self.percentile))
 
-    def verdict(self, profit_eur: float) -> tuple[bool, str]:
+    def verdict(
+        self, profit_eur: float, resale_eur: float | None = None
+    ) -> tuple[bool, str]:
         """Пропускати? І короткий підпис для алерта чи лога."""
+        if resale_eur is not None and resale_eur < self.min_resale_eur:
+            self.rejected += 1
+            return False, (
+                f"дрібна річ: продаж {resale_eur:.0f}€ при мінімумі "
+                f"{self.min_resale_eur:.0f}€"
+            )
         bar = self.bar_eur
         if profit_eur >= bar:
             self.passed += 1
@@ -70,6 +88,7 @@ class FatGate:
     def stats(self) -> dict[str, float | int | bool]:
         return {
             "bar_eur": round(self.bar_eur, 1),
+            "min_resale_eur": self.min_resale_eur,
             "samples": len(self._seen),
             "ready": self.ready,
             "passed": self.passed,

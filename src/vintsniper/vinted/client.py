@@ -52,6 +52,22 @@ class VintedBlocked(VintedError):
 # не потрібні для читання, але якщо блок з головної зняли - краще їх мати.
 COOKIELESS_RETRY_SECONDS = 1800.0
 
+# Скільки brand_ids[] можна покласти в один запит.
+#
+# Vinted завів цю межу близько 8 жовтня, і вона коштувала боту всього: до
+# того він спокійно читав стрічку з 76 брендами у фільтрі, після - кожен
+# запит повертав 403, запобіжник глушив ринок, і за дві години роботи було
+# НУЛЬ успішних читань при 909 пропущених.
+#
+# Заміряно точно, одиничними запитами з паузами: 18 ідентифікаторів -> 200,
+# 20 -> 403. Довжина URL ні до чого (418 символів із десятьма брендами
+# проходять), кількість інших параметрів теж (24 status_ids[] проходять) -
+# ріже саме кількість brand_ids[].
+#
+# 15 замість 18 - запас: межу ми бачимо лише ззовні, вона може відрізнятись
+# на іншому ринку чи змінитись завтра, а ціна помилки тут - повна тиша.
+MAX_BRAND_IDS = 15
+
 
 class VintedClient:
     """Одна сесія на один ринок."""
@@ -458,7 +474,47 @@ class VintedClient:
         order="price_low_to_high" - найдешевше зверху, незалежно від віку.
         Другий режим потрібен, бо лот, який висить пів дня, зі стрічки
         новинок уже випав, а з дешевого хвоста нікуди не дівається.
+
+        Брендів у фільтрі може бути більше, ніж Vinted приймає за раз, - тоді
+        йде кілька запитів, по MAX_BRAND_IDS у кожному, а результати
+        зливаються. Альтернатива (читати стрічку без фільтра і відсівати в
+        себе) коштувала б набагато дорожче: у відфільтрованій видачі всі 96
+        лотів наші, у загальній - приблизно чверть.
         """
+        chunks = [
+            (brand_ids or [])[i: i + MAX_BRAND_IDS]
+            for i in range(0, max(len(brand_ids or []), 1), MAX_BRAND_IDS)
+        ]
+        merged: list[Listing] = []
+        seen: set[int] = set()
+        server_ts = 0
+        for chunk in chunks:
+            listings, ts = await self._fetch_catalog_once(
+                catalog_id=catalog_id,
+                brand_ids=chunk,
+                status_ids=status_ids,
+                price_to=price_to,
+                page=page,
+                order=order,
+            )
+            server_ts = server_ts or ts
+            for item in listings:
+                if item.item_id not in seen:
+                    seen.add(item.item_id)
+                    merged.append(item)
+        return merged, server_ts or utc_now_ts()
+
+    async def _fetch_catalog_once(
+        self,
+        *,
+        catalog_id: int,
+        brand_ids: list[int],
+        status_ids: list[int] | None,
+        price_to: float | None,
+        page: int,
+        order: str,
+    ) -> tuple[list[Listing], int]:
+        """Один запит однієї порції брендів."""
         # Сторінка чекає catalog[] замість catalog_ids[] і не знає per_page:
         # вона завжди віддає 96 лотів, як і віддавало API.
         params: list[tuple[str, Any]] = [
@@ -466,7 +522,7 @@ class VintedClient:
             ("order", order),
             ("catalog[]", catalog_id),
         ]
-        for bid in brand_ids or []:
+        for bid in brand_ids:
             params.append(("brand_ids[]", bid))
         for sid in status_ids or []:
             params.append(("status_ids[]", sid))
