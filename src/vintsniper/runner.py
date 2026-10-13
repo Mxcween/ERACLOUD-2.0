@@ -85,6 +85,13 @@ WORKER_BACKOFF = (3.0, 10.0, 30.0, 120.0, 300.0)
 WORKER_HEALTHY_AFTER = 300.0
 # Як часто попереджати власника, що трафік випереджає календар
 TRAFFIC_WARN_EVERY = 6 * 3600.0
+# Скільки бот може не прочитати ЖОДНОЇ стрічки, перш ніж сказати про це
+# вголос. Двадцять хвилин - це приблизно двадцять циклів: випадкова смуга
+# відмов стільки не триває, а справжній блок триває годинами.
+SILENCE_ALARM_SECONDS = 20 * 60.0
+# Як часто повторювати це попередження. Блок знімається не швидко, і
+# нагадувати про нього щогодини означає перетворити попередження на шум.
+SILENCE_WARN_EVERY = 6 * 3600.0
 
 
 class Sniper:
@@ -121,7 +128,19 @@ class Sniper:
             max_slowdown=float(polling.get("traffic_max_slowdown", 8.0)),
         )
         self._traffic_seen = 0
-        self._traffic_warned_at = 0.0
+        # None, а не нуль. time.monotonic() на свіжому процесі починається
+        # близько нуля, тому "давно не попереджав" через різницю з нулем
+        # читається як "щойно попереджав", і ПЕРШЕ попередження глохне на
+        # кілька годин - рівно після перезапуску, коли воно найпотрібніше.
+        self._traffic_warned_at: float | None = None
+        # Коли востаннє бодай щось прочиталось. Потрібно, бо "нуль алертів"
+        # має принаймні дві різні причини - нема вигідних лотів і нас не
+        # пускають до стрічки, - а зовні вони виглядають однаково: тиша.
+        # Живий випадок: бот дві години крутив цикли з нулем читань і
+        # мовчав, а власник помітив це сам і написав "бот потух".
+        self._last_read_at = time.monotonic()
+        self._reads_seen = 0
+        self._silence_warned_at: float | None = None
         # Скільки разів кожен фоновий робітник піднімався заново, і скільки
         # обертів циклу зависло. Обидві цифри видно в /health: тихо померлий
         # робітник - саме та поломка, через яку бот виглядав живим і при тому
@@ -404,6 +423,7 @@ class Sniper:
             # Бюджет трафіку: якщо витрата випереджає календар, цикл
             # розтягується рівно на це випередження. Так ліміт доживає до
             # кінця місяця, і хостинг не має за що зупиняти сервіс.
+            await self._warn_if_silent()
             pace = self.traffic.slowdown()
             await self._warn_if_throttled(pace)
             elapsed = time.monotonic() - started
@@ -443,6 +463,52 @@ class Sniper:
             attempt += 1
             await asyncio.sleep(delay)
 
+    @property
+    def silent_for(self) -> float:
+        """Скільки секунд не було жодного успішного читання."""
+        return time.monotonic() - self._last_read_at
+
+    async def _warn_if_silent(self) -> None:
+        """Каже власнику, що бот не мовчить від бідності, а не може читати.
+
+        Різниця принципова. "Нема вигідних лотів" лікується порогами, "нас
+        не пускають" не лікується нічим із того, що є в конфізі, - і поки ці
+        два стани виглядають однаково, перший варіант завжди здається
+        правдоподібнішим, і час іде на підкручування порогів.
+        """
+        reads = sum(c.stats.get("ok", 0) for c in self.clients.values())
+        if reads > self._reads_seen:
+            self._reads_seen = reads
+            self._last_read_at = time.monotonic()
+            return
+
+        now = time.monotonic()
+        if self.silent_for < SILENCE_ALARM_SECONDS:
+            return
+        if self._silence_warned_at is not None and (
+            now - self._silence_warned_at < SILENCE_WARN_EVERY
+        ):
+            return
+        self._silence_warned_at = now
+
+        refusals = {
+            code: client.stats.get("403", 0) + client.stats.get("bootstrap_403", 0)
+            for code, client in self.clients.items()
+        }
+        detail = (
+            "Vinted відмовляє на кожен запит (403) - схоже, заблокована сама "
+            "адреса, з якої я ходжу."
+            if any(refusals.values())
+            else "Запити не проходять, але й відмов 403 нема - схоже на мережу."
+        )
+        await self.notifier.send_text(
+            f"🔇 Я не можу прочитати стрічку вже {self.silent_for / 60:.0f} хв.\n"
+            f"{detail}\n"
+            f"Відмов: {refusals}\n\n"
+            "Пороги тут ні до чого - я мовчу не тому, що нема вигідних лотів, "
+            "а тому, що не бачу самих лотів. Продовжую пробувати."
+        )
+
     async def _warn_if_throttled(self, pace: float) -> None:
         """Каже власнику, що бот сам себе придушив заради бюджету трафіку.
 
@@ -452,7 +518,9 @@ class Sniper:
         if pace < 1.5:
             return
         now = time.monotonic()
-        if now - self._traffic_warned_at < TRAFFIC_WARN_EVERY:
+        if self._traffic_warned_at is not None and (
+            now - self._traffic_warned_at < TRAFFIC_WARN_EVERY
+        ):
             return
         self._traffic_warned_at = now
         t = self.traffic.stats()
@@ -1361,6 +1429,9 @@ class Sniper:
             # Ринки, які читають каталог без кук, бо головна віддає 403.
             # Читанню це не шкодить (заміряно), але знати про це треба: саме
             # цей 403 колись глушив ринок на 99% часу.
+            # Скільки секунд не було жодного успішного читання. Саме це
+            # число відрізняє "нема вигідних лотів" від "нас не пускають".
+            "silent_for": round(self.silent_for),
             "cookieless": [
                 code for code, c in self.clients.items() if c.cookieless
             ],

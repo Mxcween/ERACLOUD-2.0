@@ -11,11 +11,12 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections import Counter
 
 import pytest
 
-from vintsniper.runner import WORKER_BACKOFF, Sniper
+from vintsniper.runner import SILENCE_ALARM_SECONDS, WORKER_BACKOFF, Sniper
 
 
 def supervisor() -> Sniper:
@@ -146,6 +147,7 @@ class TestCycleWatchdog:
         s.traffic = type("T", (), {"slowdown": lambda self: 1.0})()
         s.run_cycle = hangs
         s._warn_if_throttled = lambda pace: asyncio.sleep(0)
+        s._warn_if_silent = lambda: asyncio.sleep(0)
 
         task = asyncio.create_task(s.run_forever())
         # Пауза між обертами має власну нижню межу в секунду (щоб зламаний
@@ -158,3 +160,94 @@ class TestCycleWatchdog:
         assert entered > 1, "зависший оберт треба кидати і починати новий"
         assert s._cycles_stuck > 0
         assert s.last_error and "завис" in s.last_error
+
+
+class TestSilenceAlarm:
+    """Тиша має дві різні причини, і зовні вони однакові.
+
+    "Нема вигідних лотів" лікується порогами. "Нас не пускають до стрічки" не
+    лікується нічим із конфігу. Поки бот не розрізняв їх уголос, перший
+    варіант завжди здавався правдоподібнішим: живий бот дві години крутив
+    цикли з нулем прочитаних стрічок і мовчав, поки власник не написав сам.
+    """
+
+    def build(self, *, ok: int, refusals: int = 0):
+        from collections import Counter
+        s = object.__new__(Sniper)
+        s._last_read_at = time.monotonic()
+        s._reads_seen = 0
+        s._silence_warned_at = None
+        client = type("C", (), {})()
+        client.stats = Counter({"ok": ok, "403": refusals})
+        s.clients = {"PL": client}
+        sent: list[str] = []
+
+        async def send_text(text, **kw):
+            sent.append(text)
+            return True
+
+        s.notifier = type("N", (), {"send_text": staticmethod(send_text)})()
+        return s, sent, client
+
+    @pytest.mark.asyncio
+    async def test_a_successful_read_keeps_the_clock_reset(self):
+        s, sent, client = self.build(ok=5)
+        await s._warn_if_silent()
+        s._last_read_at -= SILENCE_ALARM_SECONDS * 2
+        client.stats["ok"] = 6                       # щось прочиталось
+        await s._warn_if_silent()
+        assert sent == [], "читання є - скаржитись нема на що"
+        assert s.silent_for < 1.0
+
+    @pytest.mark.asyncio
+    async def test_a_short_quiet_spell_says_nothing(self):
+        s, sent, _ = self.build(ok=5)
+        await s._warn_if_silent()
+        s._last_read_at -= SILENCE_ALARM_SECONDS / 2
+        await s._warn_if_silent()
+        assert sent == [], "смуга відмов на кілька хвилин - звичайна річ"
+
+    @pytest.mark.asyncio
+    async def test_a_long_silence_is_reported(self):
+        s, sent, _ = self.build(ok=0, refusals=11)
+        await s._warn_if_silent()
+        s._last_read_at -= SILENCE_ALARM_SECONDS + 1
+        await s._warn_if_silent()
+        assert len(sent) == 1
+        assert "403" in sent[0], "причину треба назвати, а не просто поскаржитись"
+
+    @pytest.mark.asyncio
+    async def test_network_trouble_reads_differently_from_a_block(self):
+        s, sent, _ = self.build(ok=0, refusals=0)
+        await s._warn_if_silent()
+        s._last_read_at -= SILENCE_ALARM_SECONDS + 1
+        await s._warn_if_silent()
+        assert "мереж" in sent[0]
+
+    @pytest.mark.asyncio
+    async def test_the_warning_does_not_repeat_every_cycle(self):
+        """Блок знімається не швидко, і нагадувати щохвилини - це спам."""
+        s, sent, _ = self.build(ok=0, refusals=11)
+        await s._warn_if_silent()
+        s._last_read_at -= SILENCE_ALARM_SECONDS + 1
+        for _ in range(10):
+            await s._warn_if_silent()
+        assert len(sent) == 1
+
+    @pytest.mark.asyncio
+    async def test_the_first_warning_is_not_swallowed_on_a_fresh_process(
+        self, monkeypatch
+    ):
+        """Лічильник "коли попереджав востаннє" не можна починати з нуля.
+
+        time.monotonic() на щойно запущеній машині теж близько нуля, тому
+        різниця з нулем читається як "щойно попереджав", і перше
+        попередження глохне на шість годин - рівно після перезапуску, коли
+        воно найпотрібніше. Тест імітує саме цей випадок: процес живе
+        хвилину.
+        """
+        monkeypatch.setattr("vintsniper.runner.time.monotonic", lambda: 60.0)
+        s, sent, _ = self.build(ok=0, refusals=11)
+        s._last_read_at = 60.0 - (SILENCE_ALARM_SECONDS + 1)
+        await s._warn_if_silent()
+        assert len(sent) == 1
