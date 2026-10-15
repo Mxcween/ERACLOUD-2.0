@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "oleh-mods": {
+      "source": {
+        "source": "github",
+        "repo": "Mxcween/claude-pets"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "pets@oleh-mods": true
+  }
+}
