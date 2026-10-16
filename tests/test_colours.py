@@ -11,6 +11,8 @@ from vintsniper.engine.colours import colour_rejection, colours_in
     "Bluza niebieska Nike",
     "Pullover weiß Stone Island",
     "Kurtka fioletowa Carhartt",
+    "Pullover rot Carhartt",        # червоний ходовий
+    "Top rosa Nike",                # рожевий ходовий
     "Jacket Black/Orange",          # ходовий колір є в назві - пропускаємо
     "Stone Island Compass",         # кольору нема - пропускаємо
 ])
@@ -20,9 +22,9 @@ def test_allowed_colours_pass(title):
 
 @pytest.mark.parametrize("title, colour", [
     ("Nike Hoodie Orange - M", "orange"),
-    ("Pulli rot Carhartt", "red"),
     ("Kurtka zielona The North Face", "green"),
     ("Hoodie gelb Nike", "yellow"),
+    ("Pulli grau Nike", "grey"),
 ])
 def test_loud_colours_are_rejected(title, colour):
     assert colour in colours_in(title)
