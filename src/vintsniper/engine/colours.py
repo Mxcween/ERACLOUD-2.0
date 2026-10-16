@@ -7,7 +7,7 @@ Vinted окремим полем колір у каталозі не відда�
 перевіряє Нікс.
 
 Дозволені задаються змінною ALLOWED_COLOURS (через кому), за замовчуванням
-чорний, білий, фіолетовий, синій, червоний, рожевий.
+чорний, білий, фіолетовий, синій, червоний, рожевий, сірий.
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ COLOUR_WORDS: dict[str, tuple[str, ...]] = {
     "beige": ("beige", "creme", "kremowy", "kremowa", "khaki"),
 }
 
-DEFAULT_ALLOWED = ("black", "white", "purple", "blue", "red", "pink")
+DEFAULT_ALLOWED = ("black", "white", "purple", "blue", "red", "pink", "grey")
 
 
 def allowed_colours() -> set[str]:
