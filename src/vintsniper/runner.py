@@ -10,7 +10,7 @@ import asyncio
 import logging
 import os
 import time
-from collections import Counter
+from collections import Counter, deque
 from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -228,6 +228,8 @@ class Sniper:
         # виникало стільки разів, що вгадувати відповідь по інших числах
         # виявилось дорожче, ніж порахувати її один раз тут.
         self._drops: Counter[str] = Counter()
+        # Стрічка ТОП-знахідок для Нікса на Mac: читає її з /health (поле top_feed)
+        self._top_feed: deque[dict[str, Any]] = deque(maxlen=50)
         # Скільки знахідок цикл не поставив у чергу через прогрів або стелю
         self._not_queued: Counter[str] = Counter()
         # Лічильники для /health: без них не видно, чи бот мовчить тому, що
@@ -910,6 +912,7 @@ class Sniper:
         if self.paused:
             self._drops["пауза"] += 1
             return False
+        self._feed_top(deal, now_ts)
         if self._in_quiet_hours():
             self._drops["тихі години"] += 1
             return False
@@ -984,6 +987,31 @@ class Sniper:
                 deal.listing.url,
             )
         return ok
+
+    def _feed_top(self, deal: Deal, now_ts: int) -> None:
+        if deal.channel != "top":
+            return
+        listing = deal.listing
+        if any(entry["id"] == listing.item_id for entry in self._top_feed):
+            return
+        self._top_feed.append({
+            "id": listing.item_id,
+            "title": listing.title,
+            "brand": listing.brand_title,
+            "size": listing.size_title,
+            "condition": listing.status_title,
+            "tier": deal.tier,
+            "price_eur": round(deal.price_eur, 2),
+            "resale_eur": round(deal.resale_eur, 2),
+            "profit_eur": round(deal.profit_eur, 2),
+            "multiple": round(deal.multiple, 2),
+            "replica_risk": deal.replica_risk,
+            "reference": deal.reference,
+            "url": listing.url,
+            "photo": listing.photo_url,
+            "age_seconds": listing.age_seconds,
+            "ts": now_ts,
+        })
 
     async def deliver_forever(self) -> None:
         """Окремий робітник доставки.
@@ -1372,6 +1400,8 @@ class Sniper:
             "outbox": self._outbox.qsize(),
             # Планка жиру: скільки зараз треба заробити, щоб лот дійшов
             "fat": self.fat.stats(),
+            # ТОП-знахідки для Нікса (найновіші вгорі)
+            "top_feed": list(reversed(self._top_feed))[:25],
             # Куди поділись знахідки, які не стали алертами. Дивитись сюди,
             # коли алертів менше, ніж знахідок: тут написано, хто їх з'їв.
             "drops": dict(self._drops),
