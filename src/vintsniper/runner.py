@@ -229,7 +229,7 @@ class Sniper:
         # виявилось дорожче, ніж порахувати її один раз тут.
         self._drops: Counter[str] = Counter()
         # Стрічка ТОП-знахідок для Нікса на Mac: читає її з /health (поле top_feed)
-        self._top_feed: deque[dict[str, Any]] = deque(maxlen=50)
+        self._top_feed: deque[dict[str, Any]] = deque(maxlen=80)
         # Скільки знахідок цикл не поставив у чергу через прогрів або стелю
         self._not_queued: Counter[str] = Counter()
         # Лічильники для /health: без них не видно, чи бот мовчить тому, що
@@ -988,8 +988,12 @@ class Sniper:
             )
         return ok
 
+    # Дешеві знахідки з каналу all теж ідуть Ніксу: купити за 15-35 і продати
+    # за 60+ - це саме те, що шукає Олег, навіть якщо множник трохи не дотягує до ТОП.
+    CHEAP_FEED_EUR = 35.0
+
     def _feed_top(self, deal: Deal, now_ts: int) -> None:
-        if deal.channel != "top":
+        if deal.channel != "top" and deal.price_eur > self.CHEAP_FEED_EUR:
             return
         listing = deal.listing
         if any(entry["id"] == listing.item_id for entry in self._top_feed):
@@ -1001,6 +1005,7 @@ class Sniper:
             "size": listing.size_title,
             "condition": listing.status_title,
             "tier": deal.tier,
+            "channel": deal.channel,
             "price_eur": round(deal.price_eur, 2),
             "resale_eur": round(deal.resale_eur, 2),
             "profit_eur": round(deal.profit_eur, 2),
@@ -1401,7 +1406,7 @@ class Sniper:
             # Планка жиру: скільки зараз треба заробити, щоб лот дійшов
             "fat": self.fat.stats(),
             # ТОП-знахідки для Нікса (найновіші вгорі)
-            "top_feed": list(reversed(self._top_feed))[:25],
+            "top_feed": list(reversed(self._top_feed))[:40],
             # Куди поділись знахідки, які не стали алертами. Дивитись сюди,
             # коли алертів менше, ніж знахідок: тут написано, хто їх з'їв.
             "drops": dict(self._drops),

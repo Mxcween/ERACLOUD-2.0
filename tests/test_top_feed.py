@@ -1,6 +1,7 @@
 """Стрічка ТОП-знахідок для Нікса: лише канал top, без дублікатів, новіші вгорі."""
 from __future__ import annotations
 
+import dataclasses
 from collections import deque
 
 from vintsniper.models import Deal, Listing
@@ -45,7 +46,15 @@ def test_only_top_deals_enter_feed_and_newest_first():
     assert entry["photo"] == "https://img/x.jpg" and entry["url"].endswith("/2")
 
 
-def test_all_channel_stays_out():
+def test_expensive_all_channel_stays_out():
     runner = _sniper()
-    runner._feed_top(_deal(3, "all"), 1000)
+    runner._feed_top(_deal(3, "all"), 1000)  # 44 EUR - дорого для «купи дешево»
     assert len(runner._top_feed) == 0
+
+
+def test_cheap_all_channel_enters_feed():
+    runner = _sniper()
+    deal = dataclasses.replace(_deal(4, "all"), price_eur=20.0)
+    runner._feed_top(deal, 1000)
+    assert [e["id"] for e in runner._top_feed] == [4]
+    assert runner._top_feed[0]["channel"] == "all"
