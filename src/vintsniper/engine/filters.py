@@ -12,6 +12,7 @@ from ..models import Listing
 from ..settings import Category, Settings
 from ..vinted.brands import BrandRegistry, ResolvedBrand
 from .sizes import clothing_size, shoe_size_eu, waist_sizes
+from .colours import colour_rejection
 from .titles import find_word
 
 
@@ -73,6 +74,11 @@ def screen(
     junk = find_word(listing.title, settings.title_blocklist)
     if junk is not None:
         return Rejected(f"не сама річ, а {junk!r}")
+
+    # Колір: лише ходові (чорний, білий, фіолетовий, синій). Якщо кольору в назві немає, пропускаємо.
+    colour_reason = colour_rejection(listing.title)
+    if colour_reason is not None:
+        return Rejected(colour_reason)
 
     # Слова, заборонені саме в цій категорії. Бігові кросівки не продаються,
     # але вітрівка з "running" у назві це нормальний лот.
