@@ -58,3 +58,4 @@ def test_cheap_all_channel_enters_feed():
     runner._feed_top(deal, 1000)
     assert [e["id"] for e in runner._top_feed] == [4]
     assert runner._top_feed[0]["channel"] == "all"
+    assert runner._top_feed[0]["category"] == "jackets"

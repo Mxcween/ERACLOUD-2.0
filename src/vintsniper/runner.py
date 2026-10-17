@@ -1006,6 +1006,7 @@ class Sniper:
             "condition": listing.status_title,
             "tier": deal.tier,
             "channel": deal.channel,
+            "category": deal.category_key,
             "price_eur": round(deal.price_eur, 2),
             "resale_eur": round(deal.resale_eur, 2),
             "profit_eur": round(deal.profit_eur, 2),
