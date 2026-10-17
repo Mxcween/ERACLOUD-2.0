@@ -1,0 +1,247 @@
+{
+  "note": "Згенеровано scripts/resolve_brands.py, потім звужено до списку з brands.yaml. Правити руками не треба - правь brands.yaml.",
+  "brands": [
+    {
+      "name": "Nike",
+      "brand_id": 53,
+      "vinted_title": "Nike",
+      "tier": "B",
+      "replica_risk": "high",
+      "item_count": 56908740,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Adidas",
+      "brand_id": 14,
+      "vinted_title": "adidas",
+      "tier": "B",
+      "replica_risk": "high",
+      "item_count": 42271485,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Adidas Originals",
+      "brand_id": 194976,
+      "vinted_title": "adidas Originals",
+      "tier": "B",
+      "replica_risk": "medium",
+      "item_count": 740470,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Jordan",
+      "brand_id": 2703,
+      "vinted_title": "Jordan",
+      "tier": "B",
+      "replica_risk": "high",
+      "item_count": 4508168,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Puma",
+      "brand_id": 535,
+      "vinted_title": "Puma",
+      "tier": "B",
+      "replica_risk": "medium",
+      "item_count": 8848741,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Reebok",
+      "brand_id": 162,
+      "vinted_title": "Reebok",
+      "tier": "B",
+      "replica_risk": "low",
+      "item_count": 2500329,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "New Balance",
+      "brand_id": 1775,
+      "vinted_title": "New Balance",
+      "tier": "B",
+      "replica_risk": "medium",
+      "item_count": 4622406,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Vans",
+      "brand_id": 139,
+      "vinted_title": "Vans",
+      "tier": "B",
+      "replica_risk": "medium",
+      "item_count": 4974796,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Asics",
+      "brand_id": 1195,
+      "vinted_title": "Asics",
+      "tier": "B",
+      "replica_risk": "medium",
+      "item_count": 2437114,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Under Armour",
+      "brand_id": 52035,
+      "vinted_title": "Under Armour",
+      "tier": "B",
+      "replica_risk": "medium",
+      "item_count": 3870033,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Champion",
+      "brand_id": 7973,
+      "vinted_title": "Champion",
+      "tier": "B",
+      "replica_risk": "medium",
+      "item_count": 2711673,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Levi's",
+      "brand_id": 10,
+      "vinted_title": "Levi's",
+      "tier": "B",
+      "replica_risk": "medium",
+      "item_count": 13052226,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Calvin Klein",
+      "brand_id": 255,
+      "vinted_title": "Calvin Klein",
+      "tier": "B",
+      "replica_risk": "high",
+      "item_count": 5296648,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Lacoste",
+      "brand_id": 304,
+      "vinted_title": "Lacoste",
+      "tier": "B",
+      "replica_risk": "high",
+      "item_count": 5695863,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Ralph Lauren",
+      "brand_id": 88,
+      "vinted_title": "Ralph Lauren",
+      "tier": "A",
+      "replica_risk": "high",
+      "item_count": 13574159,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Polo Ralph Lauren",
+      "brand_id": 4273,
+      "vinted_title": "Polo Ralph Lauren",
+      "tier": "A",
+      "replica_risk": "high",
+      "item_count": 2313337,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "The North Face",
+      "brand_id": 2319,
+      "vinted_title": "The North Face",
+      "tier": "B",
+      "replica_risk": "high",
+      "item_count": 3988947,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Stone Island",
+      "brand_id": 73306,
+      "vinted_title": "Stone Island",
+      "tier": "S",
+      "replica_risk": "high",
+      "item_count": 906600,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Moncler",
+      "brand_id": 6539,
+      "vinted_title": "Moncler",
+      "tier": "S",
+      "replica_risk": "high",
+      "item_count": 595176,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Canada Goose",
+      "brand_id": 14939,
+      "vinted_title": "Canada Goose",
+      "tier": "S",
+      "replica_risk": "high",
+      "item_count": 123627,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Supreme",
+      "brand_id": 14969,
+      "vinted_title": "Supreme",
+      "tier": "S",
+      "replica_risk": "high",
+      "item_count": 627904,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    },
+    {
+      "name": "Off-White",
+      "brand_id": 170880,
+      "vinted_title": "Off-White",
+      "tier": "S",
+      "replica_risk": "high",
+      "item_count": 348569,
+      "requires_authenticity_check": true,
+      "is_luxury": true,
+      "min_multiple": null
+    }
+  ]
+}

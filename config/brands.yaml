@@ -1,0 +1,61 @@
+# Бренди для перекупа. ТІЛЬКИ ТІ, ЩО ЗНАЄ КОЖЕН.
+#
+# Список свідомо короткий. До цього тут було 76 брендів, відібраних за
+# виміряним попитом, - і це був правильний відбір за неправильним питанням.
+# Міряв він "чи розлітається бренд на Vinted", а власнику треба інше: "чи
+# впізнаю я це, не гуглячи". Половина списку не проходила саме цю перевірку
+# (Klattermusen, Haglofs, Rab, Edwin, Nudie Jeans, Palladium, Lonsdale), і
+# алерти по них виглядали як шум, хай би якими ліквідними вони були.
+#
+# Правило тепер одне: бренд лишається, якщо його назве будь-яка людина з
+# вулиці. Carhartt, Timberland і Napapijri прибрані на пряме прохання - вони
+# саме з тих, що "відомі тим, хто в темі", а не всім.
+#
+# Що це коштує, названо чесно: обсяг. Заміряно на живій стрічці футболок
+# (95 лотів наших брендів, PL): на ці 22 бренди припало 70 лотів із 95,
+# тобто близько трьох чвертей. Решта чверть - довгий хвіст, який і давав
+# незнайомі назви. Алерти стануть приблизно на чверть рідшими.
+#
+# Прибрані, хоч і ліквідні за замірами:
+#   Stussy (22€, вподобань 30, гарячих 95% - другий найгарячіший у списку)
+#   Thrasher, A Bathing Ape, Palace, Arc'teryx, Patagonia, Carhartt WIP
+# Прибраний люкс (Gucci, Louis Vuitton, Prada, Versace, Balenciaga,
+# Burberry, Saint Laurent, Margiela, Rick Owens, Bottega): за цінами Vinted
+# це переважно репліки, тобто рівно той мотлох, через який список і різали.
+# Разом з Gucci та LV втратив сенс виняток на кепки в
+# title_blocklist_unless_brand - кепки тепер відсікаються завжди.
+#
+# Тіри лишились ті самі й означають те саме - планку множника:
+#   S - преміум з підтвердженою ціною
+#   A - робочий тір
+#   B - масовий обсяг і швидкий оборот
+#
+# replica_risk: high | medium | low
+#   Лот не відсікається, лише йде з попередженням в алерті.
+#
+# Цифри в коментарях - з того самого заміру попиту:
+#   медіана ціни € · медіана вподобань на лот · частка лотів із 5+ вподобаннями
+
+brands:
+  - {name: "Nike",                tier: B, replica_risk: high}   # 21€ · вподобань 12 · гарячих 70%
+  - {name: "Adidas",              tier: B, replica_risk: high}   # 21€ · вподобань 11 · гарячих 62%
+  - {name: "Adidas Originals",    tier: B, replica_risk: medium}   # 21€ · вподобань 11 · гарячих 80%
+  - {name: "Jordan",              tier: B, replica_risk: high}   # 25€ · вподобань 14 · гарячих 86%
+  - {name: "Puma",                tier: B, replica_risk: medium}   # 13€ · вподобань 11 · гарячих 69%
+  - {name: "Reebok",              tier: B, replica_risk: low}   # 15€ · вподобань 8 · гарячих 72%
+  - {name: "New Balance",         tier: B, replica_risk: medium}   # 30€ · вподобань 11 · гарячих 82%
+  - {name: "Vans",                tier: B, replica_risk: medium}   # 14€ · вподобань 8 · гарячих 84%
+  - {name: "Asics",               tier: B, replica_risk: medium}   # 51€ · вподобань 13 · гарячих 82%
+  - {name: "Under Armour",        tier: B, replica_risk: medium}   # 18€ · вподобань 9 · гарячих 73%
+  - {name: "Champion",            tier: B, replica_risk: medium}   # 7€ · вподобань 8 · гарячих 71%
+  - {name: "Levi's",              tier: B, replica_risk: medium}   # 18€ · вподобань 8 · гарячих 72%
+  - {name: "Calvin Klein",        tier: B, replica_risk: high}   # 12€ · вподобань 10 · гарячих 74%
+  - {name: "Lacoste",             tier: B, replica_risk: high}   # 15€ · вподобань 10 · гарячих 73%
+  - {name: "Ralph Lauren",        tier: A, replica_risk: high}   # 16€ · вподобань 14 · гарячих 79%
+  - {name: "Polo Ralph Lauren",   tier: A, replica_risk: high}   # 19€ · вподобань 11 · гарячих 77%
+  - {name: "The North Face",      tier: B, replica_risk: high}   # 21€ · вподобань 19 · гарячих 94%
+  - {name: "Stone Island",        tier: S, replica_risk: high}   # 46€ · вподобань 12 · гарячих 85%
+  - {name: "Moncler",             tier: S, replica_risk: high}   # 32€ · вподобань 11 · гарячих 80%
+  - {name: "Canada Goose",        tier: S, replica_risk: high}   # 83€ · вподобань 11 · гарячих 74%
+  - {name: "Supreme",             tier: S, replica_risk: high}   # 40€ · вподобань 36 · гарячих 96%
+  - {name: "Off-White",           tier: S, replica_risk: high}   # 21€ · вподобань 12 · гарячих 71%
